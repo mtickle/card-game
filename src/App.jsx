@@ -1,3 +1,5 @@
+import ScoreCardLayout from '@components/ScoreCardLayout';
+import Header from '@layouts/Header';
 import { useEffect, useRef, useState } from 'react';
 
 function App() {
@@ -332,136 +334,140 @@ function App() {
   };
 
   return (
-    <div className="p-4 sm:p-8 bg-white rounded-lg shadow-lg max-w-5xl mx-auto mt-4 sm:mt-8 font-sans min-h-screen flex flex-col">
-      <h1 className="text-4xl sm:text-5xl font-extrabold text-center mb-4 sm:mb-6 text-indigo-700">Uno Game</h1>
+    <div className="container mx-auto p-4">
+      <Header />
+      <ScoreCardLayout />
+      <div className="p-4 sm:p-8 bg-white rounded-lg shadow-lg max-w-5xl mx-auto mt-4 sm:mt-8 font-sans min-h-screen flex flex-col">
 
-      {/* Autoplay Controls */}
-      <div className="flex justify-center gap-4 mb-6">
-        <button
-          className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors duration-200 text-lg font-semibold"
-          onClick={handleStartAutoplay}
-          disabled={isAutoplaying || currentPlayer === -1} // Disable if already autoplaying or game over
-        >
-          Start Autoplay
-        </button>
-        <button
-          className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors duration-200 text-lg font-semibold"
-          onClick={handleStopAutoplay}
-          disabled={!isAutoplaying} // Disable if not currently autoplaying
-        >
-          Stop Autoplay
-        </button>
-      </div>
 
-      {/* Game Area */}
-      <div className="flex flex-col md:flex-row gap-4 flex-grow">
-        {/* Main Game Board */}
-        <div className="flex-1 flex flex-col justify-between">
-          {/* Top Card & Message */}
-          <div className="text-center mb-4">
-            <h2 className="text-2xl font-semibold mb-2 text-gray-800">Top Card</h2>
-            {topCard && (
-              <div
-                className={`w-24 h-36 rounded-xl shadow-lg mx-auto flex items-center justify-center text-white text-3xl font-bold border-2 border-gray-300
-                  ${topCard.color === 'red' ? 'bg-red-600' :
-                    topCard.color === 'blue' ? 'bg-blue-600' :
-                      topCard.color === 'green' ? 'bg-green-600' :
-                        topCard.color === 'yellow' ? 'bg-yellow-600' : 'bg-gray-800'}`}
-              >
-                {topCard.value}
-              </div>
-            )}
-            <p className={`mt-4 text-xl font-medium text-gray-700 ${currentPlayer === 0 && !isAutoplaying ? 'animate-pulse text-green-700 font-bold text-2xl' : ''}`}>
-              {gameMessage}
-            </p>
-          </div>
-
-          {/* AI Players' Hands (Top Row) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-            {[1, 2, 3].map(player => (
-              <div key={player} className="bg-gray-50 p-3 rounded-lg shadow-sm text-center">
-                <h2 className="text-xl font-semibold mb-2 text-gray-800">Player {player + 1} (AI)</h2>
-                <div className="flex flex-wrap gap-1 justify-center">
-                  {hands[player]?.length > 0 ? (
-                    hands[player].map((card, index) => (
-                      <div
-                        key={index}
-                        className={`w-14 h-20 rounded-lg shadow-md flex items-center justify-center text-white text-sm font-bold
-                          ${card.color === 'red' ? 'bg-red-400' :
-                            card.color === 'blue' ? 'bg-blue-400' :
-                              card.color === 'green' ? 'bg-green-400' :
-                                card.color === 'yellow' ? 'bg-yellow-400' : 'bg-gray-600'}`}
-                      >
-                        {card.value === 'Wild' || card.value === 'Wild Draw Four' ? 'W' : ''}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-gray-500 text-sm">No cards.</p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Player 1's Hand */}
-          <div className="mt-auto border-t pt-4 border-gray-200">
-            <h2 className="text-2xl font-semibold mb-3 text-gray-800 text-center">Your Hand (Player 1)</h2>
-            <div className="flex flex-wrap gap-3 justify-center">
-              {hands[0]?.length > 0 ? (
-                hands[0].map((card, index) => (
-                  <button
-                    key={index}
-                    className={`w-20 h-28 rounded-xl shadow-md flex items-center justify-center cursor-pointer text-white text-lg font-bold transition-all duration-200 ease-in-out transform hover:scale-105 border-2 ${currentPlayer === 0 && !isAutoplaying && canPlayCard(card, topCard) ? 'hover:border-indigo-500' : 'border-gray-300'}
-                      ${card.color === 'red' ? 'bg-red-500' :
-                        card.color === 'blue' ? 'bg-blue-500' :
-                          card.color === 'green' ? 'bg-green-500' :
-                            card.color === 'yellow' ? 'bg-yellow-500' : 'bg-gray-700'}
-                      ${(currentPlayer !== 0 || isAutoplaying || !canPlayCard(card, topCard)) ? 'opacity-60 cursor-not-allowed' : ''}`}
-                    onClick={() => {
-                      if (currentPlayer === 0 && !isAutoplaying) { // Only allow human input if not autoplaying
-                        if (card.color === 'wild') {
-                          let chosenColor = null;
-                          while (!chosenColor || !colors.includes(chosenColor)) {
-                            chosenColor = prompt('Choose a color: red, blue, green, or yellow').toLowerCase();
-                            if (!colors.includes(chosenColor)) {
-                              alert('Invalid color chosen. Please choose red, blue, green, or yellow.');
-                            }
-                          }
-                          playCard(card, 0, chosenColor);
-                        } else {
-                          playCard(card, 0);
-                        }
-                      }
-                    }}
-                    disabled={currentPlayer !== 0 || isAutoplaying || !canPlayCard(card, topCard)}
-                  >
-                    {card.value}
-                  </button>
-                ))
-              ) : (
-                <p className="text-gray-600 text-center w-full">No cards in your hand.</p>
-              )}
-            </div>
-            <div className="text-center mt-4">
-              <button
-                className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors duration-200 text-lg font-semibold"
-                onClick={drawCard}
-                disabled={currentPlayer !== 0 || isAutoplaying} // Disable if autoplaying
-              >
-                Draw Card
-              </button>
-            </div>
-          </div>
+        {/* Autoplay Controls */}
+        <div className="flex justify-center gap-4 mb-6">
+          <button
+            className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors duration-200 text-lg font-semibold"
+            onClick={handleStartAutoplay}
+            disabled={isAutoplaying || currentPlayer === -1} // Disable if already autoplaying or game over
+          >
+            Start Autoplay
+          </button>
+          <button
+            className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors duration-200 text-lg font-semibold"
+            onClick={handleStopAutoplay}
+            disabled={!isAutoplaying} // Disable if not currently autoplaying
+          >
+            Stop Autoplay
+          </button>
         </div>
 
-        {/* Game History Sidebar */}
-        <div className="w-full md:w-1/3 bg-gray-100 p-6 rounded-lg shadow-lg md:max-h-[calc(100vh-100px)] overflow-y-auto">
-          <h2 className="text-2xl font-semibold mb-4 text-gray-800 border-b pb-2">Game History</h2>
-          <ul className="list-disc list-inside text-base text-gray-700 space-y-2">
-            {history.map((entry, index) => (
-              <li key={index} className="border-b border-gray-200 pb-1 last:border-b-0">{entry}</li>
-            ))}
-          </ul>
+        {/* Game Area */}
+        <div className="flex flex-col md:flex-row gap-4 flex-grow">
+          {/* Main Game Board */}
+          <div className="flex-1 flex flex-col justify-between">
+            {/* Top Card & Message */}
+            <div className="text-center mb-4">
+              <h2 className="text-2xl font-semibold mb-2 text-gray-800">Top Card</h2>
+              {topCard && (
+                <div
+                  className={`w-24 h-36 rounded-xl shadow-lg mx-auto flex items-center justify-center text-white text-3xl font-bold border-2 border-gray-300
+                  ${topCard.color === 'red' ? 'bg-red-600' :
+                      topCard.color === 'blue' ? 'bg-blue-600' :
+                        topCard.color === 'green' ? 'bg-green-600' :
+                          topCard.color === 'yellow' ? 'bg-yellow-600' : 'bg-gray-800'}`}
+                >
+                  {topCard.value}
+                </div>
+              )}
+              <p className={`mt-4 text-xl font-medium text-gray-700 ${currentPlayer === 0 && !isAutoplaying ? 'animate-pulse text-green-700 font-bold text-2xl' : ''}`}>
+                {gameMessage}
+              </p>
+            </div>
+
+            {/* AI Players' Hands (Top Row) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+              {[1, 2, 3].map(player => (
+                <div key={player} className="bg-gray-50 p-3 rounded-lg shadow-sm text-center">
+                  <h2 className="text-xl font-semibold mb-2 text-gray-800">Player {player + 1} (AI)</h2>
+                  <div className="flex flex-wrap gap-1 justify-center">
+                    {hands[player]?.length > 0 ? (
+                      hands[player].map((card, index) => (
+                        <div
+                          key={index}
+                          className={`w-14 h-20 rounded-lg shadow-md flex items-center justify-center text-white text-sm font-bold
+                          ${card.color === 'red' ? 'bg-red-400' :
+                              card.color === 'blue' ? 'bg-blue-400' :
+                                card.color === 'green' ? 'bg-green-400' :
+                                  card.color === 'yellow' ? 'bg-yellow-400' : 'bg-gray-600'}`}
+                        >
+                          {card.value === 'Wild' || card.value === 'Wild Draw Four' ? 'W' : ''}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 text-sm">No cards.</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Player 1's Hand */}
+            <div className="mt-auto border-t pt-4 border-gray-200">
+              <h2 className="text-2xl font-semibold mb-3 text-gray-800 text-center">Your Hand (Player 1)</h2>
+              <div className="flex flex-wrap gap-3 justify-center">
+                {hands[0]?.length > 0 ? (
+                  hands[0].map((card, index) => (
+                    <button
+                      key={index}
+                      className={`w-20 h-28 rounded-xl shadow-md flex items-center justify-center cursor-pointer text-white text-lg font-bold transition-all duration-200 ease-in-out transform hover:scale-105 border-2 ${currentPlayer === 0 && !isAutoplaying && canPlayCard(card, topCard) ? 'hover:border-indigo-500' : 'border-gray-300'}
+                      ${card.color === 'red' ? 'bg-red-500' :
+                          card.color === 'blue' ? 'bg-blue-500' :
+                            card.color === 'green' ? 'bg-green-500' :
+                              card.color === 'yellow' ? 'bg-yellow-500' : 'bg-gray-700'}
+                      ${(currentPlayer !== 0 || isAutoplaying || !canPlayCard(card, topCard)) ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      onClick={() => {
+                        if (currentPlayer === 0 && !isAutoplaying) { // Only allow human input if not autoplaying
+                          if (card.color === 'wild') {
+                            let chosenColor = null;
+                            while (!chosenColor || !colors.includes(chosenColor)) {
+                              chosenColor = prompt('Choose a color: red, blue, green, or yellow').toLowerCase();
+                              if (!colors.includes(chosenColor)) {
+                                alert('Invalid color chosen. Please choose red, blue, green, or yellow.');
+                              }
+                            }
+                            playCard(card, 0, chosenColor);
+                          } else {
+                            playCard(card, 0);
+                          }
+                        }
+                      }}
+                      disabled={currentPlayer !== 0 || isAutoplaying || !canPlayCard(card, topCard)}
+                    >
+                      {card.value}
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-gray-600 text-center w-full">No cards in your hand.</p>
+                )}
+              </div>
+              <div className="text-center mt-4">
+                <button
+                  className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors duration-200 text-lg font-semibold"
+                  onClick={drawCard}
+                  disabled={currentPlayer !== 0 || isAutoplaying} // Disable if autoplaying
+                >
+                  Draw Card
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Game History Sidebar */}
+          <div className="w-full md:w-1/3 bg-gray-100 p-6 rounded-lg shadow-lg md:max-h-[calc(100vh-100px)] overflow-y-auto">
+            <h2 className="text-2xl font-semibold mb-4 text-gray-800 border-b pb-2">Game History</h2>
+            <ul className="list-disc list-inside text-base text-gray-700 space-y-2">
+              {history.map((entry, index) => (
+                <li key={index} className="border-b border-gray-200 pb-1 last:border-b-0">{entry}</li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
     </div>
