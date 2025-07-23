@@ -1,4 +1,5 @@
-import Header from '@layouts/Header';
+import Card, { getCardIcon, getColorClass } from '@components/Card'; // <-- Import Card component and helpers
+import Header from '@layouts/Header'; // Assuming this path is correct
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 function App() {
@@ -39,7 +40,6 @@ function App() {
     return hands;
   };
 
-
   // --- Game State ---
   const [deck, setDeck] = useState(() => createDeck());
   const [hands, setHands] = useState([]);
@@ -53,6 +53,7 @@ function App() {
   const [gameOver, setGameOver] = useState(false);
   const [winner, setWinner] = useState(null);
   const [finalScores, setFinalScores] = useState([]);
+  // const [autoplay, setAutoplay] = useState(false); // This state is redundant with isAutoplaying
 
   //--- Prepare the game. Give us a top card but not if it is a special card.
   useEffect(() => {
@@ -80,10 +81,6 @@ function App() {
     setTopCard(startingTopCard);
     setGameMessage(`Player ${currentPlayer + 1}'s turn`);
 
-    // console.log('Initial setup completed.');
-    // console.log('Player Hands:', initialHands);
-    // console.log('Initial Top Card:', startingTopCard);
-
     return () => {
       if (aiTurnTimeoutRef.current) {
         clearTimeout(aiTurnTimeoutRef.current);
@@ -91,23 +88,33 @@ function App() {
     };
   }, []);
 
-
-
   //--- This is supposed to do something but I'm not sure what.
   const startNewGame = useCallback(() => {
-    const newDeck = shuffleDeck();
-    const newHands = dealCards(newDeck);
-    const startingCard = drawInitialPlayableCard(newDeck); // however you select the first top card
+    const newDeck = createDeck();
+    const newHands = dealCards([...newDeck]);
 
+    let startingTopCard = null;
+    while (newDeck.length > 0) {
+      const card = newDeck.pop();
+      if (card.value !== 'Skip' && card.value !== 'Reverse' && card.value !== 'Draw Two' && card.color !== 'wild') {
+        startingTopCard = card;
+        break;
+      }
+      newHands[0].push(card); // Put unusable starting cards into Player 1's hand
+    }
+
+    setDeck([...newDeck]);
     setHands(newHands);
-    setDeck(newDeck);
-    setTopCard(startingCard);
+    setTopCard(startingTopCard || { color: 'wild', value: 'Wild' });
     setCurrentPlayer(0);
     setWinner(null);
     setFinalScores([]);
-    setHistory([]);
+    setGameMessage("New game started. Player 1's turn.");
+    setHistory(['New game started']);
+    setGameOver(false);
+    // Don't modify isAutoplaying here, it should be controlled by buttons
+    // If it was true, it will remain true and new game will autoplay
   }, []);
-
 
 
   //--- GAME OVER
@@ -115,21 +122,22 @@ function App() {
     const winnerIndex = hands.findIndex(hand => hand.length === 0);
 
     if (winnerIndex !== -1 && !gameOver) {
-      console.log("game over")
       const scores = calculateGameScore(hands, winnerIndex);
       setWinner(winnerIndex);
       setFinalScores(scores);
       setGameOver(true);
 
-      const timer = setTimeout(() => {
-        startNewGame();
-        setGameOver(false);
-      }, 3000);
+      if (isAutoplaying) { // Use isAutoplaying, not 'autoplay'
+        const timer = setTimeout(() => {
+          startNewGame();
+        }, 3000);
 
-      return () => clearTimeout(timer); // cleanup if component unmounts
+        return () => clearTimeout(timer);
+      } else {
+        setIsAutoplaying(false);
+      }
     }
-  }, [hands, gameOver, startNewGame]);
-
+  }, [hands, gameOver, isAutoplaying, startNewGame]); // Dependency update: use isAutoplaying
 
   // --- Card Playability Check ---
   const canPlayCard = (card, currentTopCard) => {
@@ -142,9 +150,9 @@ function App() {
   };
 
   // --- AI Logic ---
-  const chooseWildColor = (hand) => { // Passed hand to be more explicit
+  const chooseWildColor = (hand) => {
     const colorCounts = { red: 0, blue: 0, green: 0, yellow: 0 };
-    hand.forEach(card => { // Use the passed hand
+    hand.forEach(card => {
       if (card.color !== 'wild') {
         colorCounts[card.color]++;
       }
@@ -161,22 +169,16 @@ function App() {
   };
 
   const playAI = (hand, currentTopCard, currentDeck, playerIndex) => {
-    //console.log(`AI Player ${playerIndex + 1} evaluating hand:`, hand, 'Top card:', currentTopCard);
-    // Prioritize non-wild cards that match
     for (let card of hand) {
       if (card.color !== 'wild' && canPlayCard(card, currentTopCard)) {
-        //  console.log(`AI Player ${playerIndex + 1} selects card (non-wild):`, card);
         return card;
       }
     }
-    // If no non-wild cards, play a wild if possible
     for (let card of hand) {
       if (card.color === 'wild') {
-        //console.log(`AI Player ${playerIndex + 1} selects card (wild):`, card);
         return card;
       }
     }
-    //console.log(`AI Player ${playerIndex + 1} cannot play, will draw a card.`);
     return null; // AI needs to draw
   };
 
@@ -197,8 +199,6 @@ function App() {
 
   // --- Main Card Playing Logic ---
   const playCard = (card, playerIndex, chosenWildColor = null) => {
-    //console.log(`Player ${playerIndex + 1} attempting to play card:`, card);
-
     if (playerIndex !== currentPlayer) {
       setGameMessage(`It's not Player ${playerIndex + 1}'s turn! It's Player ${currentPlayer + 1}'s turn.`);
       setHistory(prev => [`Player ${playerIndex + 1} tried to play out of turn.`, ...prev]);
@@ -212,7 +212,6 @@ function App() {
     }
 
     const newHands = [...hands];
-    // Remove the played card from the hand. Handle cases where the same card might appear multiple times.
     const cardIndex = newHands[playerIndex].findIndex(c => c.color === card.color && c.value === card.value);
     if (cardIndex > -1) {
       newHands[playerIndex].splice(cardIndex, 1);
@@ -232,7 +231,7 @@ function App() {
       setGameMessage(`Player ${playerIndex + 1} wins!`);
       setHistory(prev => [`Player ${playerIndex + 1} wins the game!`, ...prev]);
       setCurrentPlayer(-1); // End game
-      setIsAutoplaying(false); // Stop autoplay on win
+      // isAutoplaying is handled in useEffect for gameOver
       return;
     }
 
@@ -249,18 +248,17 @@ function App() {
     } else if (card.value === 'Draw Two') {
       drawAmount = 2;
       setHistory(prev => [`Player ${nextPlayerIdx + 1} draws two cards.`, ...prev]);
-      nextPlayerIdx = (nextPlayerIdx + direction + 4) % 4; // Player who draws gets skipped
+      nextPlayerIdx = (nextPlayerIdx + direction + 4) % 4;
     } else if (card.value === 'Wild Draw Four') {
       drawAmount = 4;
       setHistory(prev => [`Player ${nextPlayerIdx + 1} draws four cards.`, ...prev]);
-      nextPlayerIdx = (nextPlayerIdx + direction + 4) % 4; // Player who draws gets skipped
+      nextPlayerIdx = (nextPlayerIdx + direction + 4) % 4;
     }
 
     if (drawAmount > 0) {
       const currentDeck = [...deck];
       for (let i = 0; i < drawAmount; i++) {
         if (currentDeck.length > 0) {
-          // The actual player who draws is (currentPlayer + direction + 4) % 4
           newHands[(currentPlayer + direction + 4) % 4].push(currentDeck.pop());
         } else {
           setHistory(prev => [`Deck is empty! Cannot draw more cards.`, ...prev]);
@@ -277,9 +275,7 @@ function App() {
 
   // --- Draw Card Logic for Human Player ---
   const drawCard = () => {
-    // Only allow human to manually draw if not autoplaying
     if (isAutoplaying && currentPlayer === 0) {
-      //console.log("Autoplay is active, AI will handle Player 1's draw.");
       return;
     }
 
@@ -309,42 +305,33 @@ function App() {
     setGameMessage(`Player 1 drew a card. Player ${nextPlayer + 1}'s turn.`);
   };
 
-  useEffect(() => {
-    if (!isAutoplaying) {
-      handleStartAutoplay();
-    }
-  }, []);
 
   // --- AI Turn Effect (handles all AI players, including Player 0 if autoplaying) ---
   useEffect(() => {
-    // If game is over, or not a valid player turn (shouldn't happen with current logic, but good safeguard)
-    if (currentPlayer === -1) {
+    if (currentPlayer === -1 || gameOver) { // Add gameOver check here
       return;
     }
 
-    // Only proceed if it's an AI's turn OR if it's player 0's turn and autoplay is active
     if (currentPlayer !== 0 || isAutoplaying) {
       if (aiTurnTimeoutRef.current) {
         clearTimeout(aiTurnTimeoutRef.current);
       }
 
       aiTurnTimeoutRef.current = setTimeout(() => {
-        //console.log(`AI Player ${currentPlayer + 1}'s turn logic initiated.`);
         const aiHand = hands[currentPlayer];
-        const currentTopCard = topCard; // Ensure latest topCard is used
-        const currentDeck = deck; // Ensure latest deck is used
+        const currentTopCard = topCard;
+        const currentDeck = deck;
 
         const aiCardToPlay = playAI(aiHand, currentTopCard, currentDeck, currentPlayer);
 
         if (aiCardToPlay) {
           let chosenColor = null;
           if (aiCardToPlay.color === 'wild') {
-            chosenColor = chooseWildColor(aiHand); // AI chooses color based on its hand
+            chosenColor = chooseWildColor(aiHand);
           }
           playCard(aiCardToPlay, currentPlayer, chosenColor);
         } else {
-          // AI needs to draw a card
-          const newDeck = [...currentDeck]; // Use the latest deck
+          const newDeck = [...currentDeck];
           if (newDeck.length > 0) {
             const newHands = [...hands];
             const drawnCard = newDeck.pop();
@@ -353,20 +340,18 @@ function App() {
             setHands(newHands);
             setHistory(prev => [`Player ${currentPlayer + 1} drew a card.`, ...prev]);
 
-            // After drawing, AI's turn is over, move to the next player
             const nextPlayer = (currentPlayer + direction + 4) % 4;
             setCurrentPlayer(nextPlayer);
             setGameMessage(`Player ${currentPlayer + 1} drew a card. Player ${nextPlayer + 1}'s turn.`);
           } else {
             setGameMessage(`No cards left to draw for Player ${currentPlayer + 1}! Turn passes.`);
             setHistory(prev => [`No cards left for Player ${currentPlayer + 1} to draw.`, ...prev]);
-            // If deck is empty, turn still passes
             const nextPlayer = (currentPlayer + direction + 4) % 4;
             setCurrentPlayer(nextPlayer);
             setGameMessage(`Player ${currentPlayer + 1} could not draw. Player ${nextPlayer + 1}'s turn.`);
           }
         }
-      }, isAutoplaying ? 200 : 1500); // Faster turns for autoplay, slower for manual AI
+      }, isAutoplaying ? 200 : 1500);
 
       return () => {
         if (aiTurnTimeoutRef.current) {
@@ -374,7 +359,8 @@ function App() {
         }
       };
     }
-  }, [currentPlayer, hands, topCard, deck, direction, isAutoplaying]); // Add isAutoplaying to dependencies
+  }, [currentPlayer, hands, topCard, deck, direction, isAutoplaying, gameOver]); // Dependency update: add gameOver
+
 
   // --- Autoplay Control Handlers ---
   const handleStartAutoplay = () => {
@@ -382,9 +368,8 @@ function App() {
       setIsAutoplaying(true);
       setGameMessage("Autoplay started! AI vs AI.");
       setHistory(prev => [`Autoplay started.`, ...prev]);
-      // If it's currently human's turn, trigger the AI effect
       if (currentPlayer === 0) {
-        setCurrentPlayer(0); // Trigger useEffect for current player 0
+        setCurrentPlayer(0);
       }
     }
   };
@@ -408,24 +393,44 @@ function App() {
           {[0, 1, 2, 3].map(player => (
             <div
               key={player}
-              className="bg-[#fffdf7] p-4 rounded-2xl shadow-md border-2 border-[#e2dccc]"
+              className={`bg-[#fffdf7] p-4 rounded-2xl shadow-md border-2 border-[#e2dccc] ${currentPlayer === player && !gameOver ? 'border-indigo-500 ring-4 ring-indigo-200' : ''}`}
             >
               <div className="flex flex-col gap-2">
-                <div className="font-semibold text-gray-800 text-left">Player {player + 1}</div>
+                <div className="font-semibold text-gray-800 text-left">
+                  Player {player + 1}
+                  {currentPlayer === player && !gameOver && (
+                    <span className="ml-2 text-sm text-green-600 font-bold animate-pulse">YOUR TURN</span>
+                  )}
+                </div>
 
-                <div className="flex flex-wrap gap-1 justify-center">
+                <div className="flex flex-wrap gap-1 justify-left">
                   {hands[player]?.length > 0 ? (
                     hands[player].map((card, index) => (
-                      <div
+                      <Card
                         key={index}
-                        className={`w-14 h-20 rounded-xl shadow-md flex items-center justify-center border-4 text-lg font-bold bg-white
-                    ${card.color === 'red' ? 'border-red-500 text-red-600' :
-                            card.color === 'blue' ? 'border-blue-500 text-blue-600' :
-                              card.color === 'green' ? 'border-green-500 text-green-600' :
-                                card.color === 'yellow' ? 'border-yellow-500 text-yellow-600' : 'border-gray-500 text-gray-600'}`}
-                      >
-                        {card.value === 'Wild' || card.value === 'Wild Draw Four' ? 'W' : card.value}
-                      </div>
+                        card={card}
+                        onClick={() => {
+                          if (player === 0 && !isAutoplaying) { // Human player only and not autoplaying
+                            if (card.color === 'wild') {
+                              let chosenColor = null;
+                              while (!chosenColor || !colors.includes(chosenColor)) {
+                                chosenColor = prompt('Choose a color: red, blue, green, or yellow').toLowerCase();
+                                if (!colors.includes(chosenColor)) {
+                                  alert('Invalid color chosen. Please choose red, blue, green, or yellow.');
+                                }
+                              }
+                              playCard(card, 0, chosenColor);
+                            } else {
+                              playCard(card, 0);
+                            }
+                          }
+                        }}
+                        isDisabled={
+                          (player === 0 && (currentPlayer !== 0 || isAutoplaying || !canPlayCard(card, topCard))) ||
+                          (player !== 0 && true) // AI cards are never interactive
+                        }
+                        isClickable={player === 0 && canPlayCard(card, topCard) && !isAutoplaying}
+                      />
                     ))
                   ) : (
                     <p className="text-gray-500 text-sm">No cards.</p>
@@ -434,6 +439,16 @@ function App() {
               </div>
             </div>
           ))}
+          {/* Draw Card button for Player 1 */}
+          <div className="text-center mt-4">
+            <button
+              className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors duration-200 text-lg font-semibold"
+              onClick={drawCard}
+              disabled={currentPlayer !== 0 || isAutoplaying || gameOver} // Disable if autoplaying or game over
+            >
+              Draw Card
+            </button>
+          </div>
         </div>
 
         {/* Top Card section aligned to match full height */}
@@ -442,13 +457,9 @@ function App() {
 
           {topCard && (
             <div
-              className={`w-24 h-36 rounded-xl shadow-md flex items-center justify-center border-4 text-4xl font-extrabold bg-white
-          ${topCard.color === 'red' ? 'border-red-500 text-red-600' :
-                  topCard.color === 'blue' ? 'border-blue-500 text-blue-600' :
-                    topCard.color === 'green' ? 'border-green-500 text-green-600' :
-                      topCard.color === 'yellow' ? 'border-yellow-500 text-yellow-600' : 'border-gray-500 text-gray-600'}`}
+              className={`w-24 h-36 rounded-xl shadow-md flex items-center justify-center text-4xl font-extrabold ${getColorClass(topCard.color, 'card')} border-4 ${getColorClass(topCard.color, 'border')}`}
             >
-              {topCard.value === 'Wild' || topCard.value === 'Wild Draw Four' ? 'W' : topCard.value}
+              {getCardIcon(topCard.value)}
             </div>
           )}
 
@@ -456,12 +467,12 @@ function App() {
           <div className="flex justify-center gap-4 mb-6">
             <button
               className={`px-6 py-3 rounded-lg text-white text-lg font-semibold transition-colors duration-200
-      ${isAutoplaying
+                ${isAutoplaying
                   ? 'bg-red-600 hover:bg-red-700'
                   : 'bg-green-600 hover:bg-green-700'}
-      ${currentPlayer === -1 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                ${gameOver ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={isAutoplaying ? handleStopAutoplay : handleStartAutoplay}
-              disabled={currentPlayer === -1} // Only disable if game over
+              disabled={gameOver}
             >
               {isAutoplaying ? 'Stop Autoplay' : 'Start Autoplay'}
             </button>
