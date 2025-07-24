@@ -61,14 +61,14 @@ export const initialGameState = {
     deck: [],
     hands: [],
     topCard: null,
-    currentPlayer: 0,
-    gameMessage: 'Welcome to UNO!',
-    history: ['Game initialized'],
+    currentPlayer: -1, // -1 or 0, indicating game not started or player 1's turn
+    gameMessage: "Welcome to React UNO! Click 'Start Autoplay' or 'Start New Game'.",
+    history: [],
     direction: 1, // 1 for clockwise, -1 for counter-clockwise
-    isAutoplaying: false,
+    isAutoplaying: true, // <--- CHANGE THIS TO TRUE
     gameOver: false,
     winner: null,
-    finalScores: [],
+    finalScores: [], // Will be populated when game ends, if needed elsewhere
 };
 
 // The Reducer Function

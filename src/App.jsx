@@ -1,6 +1,6 @@
 // src/App.jsx
 import Header from '@layouts/Header';
-import { gameReducer, initialGameState } from '@utils/gameReducer'; // Import reducer
+import { gameReducer, initialGameState } from '@utils/gameReducer';
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import Card, { getCardIcon, getColorClass, WinnerCard } from './components/Card';
 
@@ -18,9 +18,8 @@ import Card, { getCardIcon, getColorClass, WinnerCard } from './components/Card'
 */
 
 function App() {
-  const colors = ['red', 'blue', 'green', 'yellow']; // Still needed for prompt
+  const colors = ['red', 'blue', 'green', 'yellow'];
 
-  // Use useReducer to manage all game state
   const [state, dispatch] = useReducer(gameReducer, initialGameState);
   const {
     deck,
@@ -30,24 +29,24 @@ function App() {
     gameMessage,
     history,
     direction,
-    isAutoplaying,
+    isAutoplaying, // This will now start as true from initialGameState
     gameOver,
     winner,
-    finalScores
+    // finalScores is no longer needed for direct UI rendering
   } = state;
 
   const aiTurnTimeoutRef = useRef(null);
+  const gameOverTimeoutRef = useRef(null); // New ref for game over pause
 
   // Helper for logging hand sizes - adjusted for reducer state
   const logHandSizes = useCallback((action, currentHandsState) => {
     const targetHands = currentHandsState || hands;
     const sizes = targetHands.map((hand, index) => `P${index + 1}: ${hand.length}`);
     console.log(`[HANDS DEBUG] ${action} - ${sizes.join(', ')}`);
-  }, [hands]); // `hands` is still a dependency for `logHandSizes` default behavior
+  }, [hands]);
 
 
   // --- Card Playability Check ---
-  // Moved this logic inside reducer for consistency, but also needed here for UI check
   const canPlayCardUI = useCallback((card, currentTopCard) => {
     if (!card || !currentTopCard) return false;
     if (card.color === 'wild') return true;
@@ -86,16 +85,20 @@ function App() {
   }, [canPlayCardUI]);
 
 
-  // --- Initial Game Setup Effect (runs once on component mount) ---
+  // --- Initial Game Setup Effect (runs once on component mount or on new game) ---
   useEffect(() => {
-    // Only initialize if the game hasn't started yet
+    // Only initialize if the game hasn't started yet or if we're explicitly starting a new game
+    // The initialGameState.isAutoplaying is now true, so we initialize immediately
     if (hands.length === 0 && deck.length === 0 && !topCard) {
-      dispatch({ type: 'INITIALIZE_GAME' });
+      dispatch({ type: 'INITIALIZE_GAME', payload: { isAutoplaying: true } }); // Start with autoplay on initial load
     }
     // Cleanup timeout if component unmounts
     return () => {
       if (aiTurnTimeoutRef.current) {
         clearTimeout(aiTurnTimeoutRef.current);
+      }
+      if (gameOverTimeoutRef.current) { // Clean up game over timeout too
+        clearTimeout(gameOverTimeoutRef.current);
       }
     };
   }, [hands.length, deck.length, topCard, dispatch]); // dependencies for effect
@@ -111,10 +114,9 @@ function App() {
       return;
     }
 
-    const isAITurn = (currentPlayer !== 0 || isAutoplaying);
+    const isCurrentPlayerAI = (currentPlayer !== 0 || isAutoplaying); // Player 0 is AI if autoplaying
 
-    if (isAITurn) {
-      // Clear any existing timeout to prevent multiple concurrent AI turns
+    if (isCurrentPlayerAI) {
       if (aiTurnTimeoutRef.current) {
         clearTimeout(aiTurnTimeoutRef.current);
       }
@@ -132,16 +134,12 @@ function App() {
         const aiCardToPlay = playAI(currentAiHand, currentTopCardForAI);
 
         if (aiCardToPlay) {
-          // Initialize chosenWildColor here, before any conditional assignment
-          let chosenWildColor = null; // <--- ADD THIS LINE
-
+          let chosenWildColor = null;
           if (aiCardToPlay.color === 'wild') {
             chosenWildColor = chooseWildColor(currentAiHand);
           }
-          // Now chosenWildColor will be either the chosen color or null
           dispatch({ type: 'PLAY_CARD', payload: { card: aiCardToPlay, playerIndex: currentPlayer, chosenWildColor } });
         } else {
-          // AI needs to draw a card
           dispatch({ type: 'DRAW_CARD', payload: { playerIndex: currentPlayer, drawnByAI: true } });
         }
       }, isAutoplaying ? 200 : 1500); // Faster turns for autoplay
@@ -154,37 +152,89 @@ function App() {
       };
     }
     return undefined;
-  }, [currentPlayer, hands, topCard, isAutoplaying, gameOver, playAI, chooseWildColor, dispatch]); // Dependencies for AI turn
+  }, [currentPlayer, hands, topCard, isAutoplaying, gameOver, playAI, chooseWildColor, dispatch]);
+
+
+  // --- Game Over Auto-Restart Logic ---
+  useEffect(() => {
+    if (gameOver && isAutoplaying) {
+      // Clear any pending AI turn timeouts
+      if (aiTurnTimeoutRef.current) {
+        clearTimeout(aiTurnTimeoutRef.current);
+        aiTurnTimeoutRef.current = null;
+      }
+      // Clear any previous game over timeout
+      if (gameOverTimeoutRef.current) {
+        clearTimeout(gameOverTimeoutRef.current);
+      }
+
+      dispatch({ type: 'ADD_HISTORY', payload: `Game over! New game starting in 3 seconds...` });
+
+      gameOverTimeoutRef.current = setTimeout(() => {
+        dispatch({ type: 'INITIALIZE_GAME', payload: { isAutoplaying: true } }); // Reinitialize with autoplay still on
+        dispatch({ type: 'UPDATE_MESSAGE', payload: "New game started automatically." }); // Update message for new game
+      }, 3000); // 3-second pause
+
+      return () => {
+        if (gameOverTimeoutRef.current) {
+          clearTimeout(gameOverTimeoutRef.current); // Cleanup on unmount or if dependencies change
+        }
+      };
+    } else if (gameOver && !isAutoplaying) {
+      // If game is over but autoplay is NOT active, ensure AI turn timeouts are clear
+      if (aiTurnTimeoutRef.current) {
+        clearTimeout(aiTurnTimeoutRef.current);
+        aiTurnTimeoutRef.current = null;
+      }
+      // Also clear any game over restart timer if autoplay was stopped mid-restart
+      if (gameOverTimeoutRef.current) {
+        clearTimeout(gameOverTimeoutRef.current);
+        gameOverTimeoutRef.current = null;
+      }
+    }
+    return undefined;
+  }, [gameOver, isAutoplaying, dispatch]);
+
 
   // --- Autoplay Control Handlers ---
   const handleStartAutoplay = () => {
-    if (!isAutoplaying && !gameOver) {
+    if (!isAutoplaying) { // Only start if not already autoplaying
       dispatch({ type: 'SET_AUTOPLAY', payload: true });
       dispatch({ type: 'UPDATE_MESSAGE', payload: "Autoplay started! AI vs AI." });
-      dispatch({ type: 'ADD_HISTORY', payload: 'Autoplay started.' }); // New action for history
+      dispatch({ type: 'ADD_HISTORY', payload: 'Autoplay started.' });
       console.log("[AUTOPLAY] Autoplay started.");
       logHandSizes("After Autoplay Start", hands);
-    } else if (gameOver) {
-      dispatch({ type: 'UPDATE_MESSAGE', payload: "Game is over. Click 'Start New Game' to begin again." });
     }
   };
 
   const handleStopAutoplay = () => {
-    dispatch({ type: 'SET_AUTOPLAY', payload: false });
-    dispatch({ type: 'UPDATE_MESSAGE', payload: `Autoplay stopped. Player ${currentPlayer + 1}'s turn.` });
-    dispatch({ type: 'ADD_HISTORY', payload: 'Autoplay stopped.' }); // New action for history
-    if (aiTurnTimeoutRef.current) {
-      clearTimeout(aiTurnTimeoutRef.current);
-      aiTurnTimeoutRef.current = null;
+    if (isAutoplaying) { // Only stop if currently autoplaying
+      dispatch({ type: 'SET_AUTOPLAY', payload: false });
+      dispatch({ type: 'UPDATE_MESSAGE', payload: `Autoplay stopped. Player ${currentPlayer + 1}'s turn.` });
+      dispatch({ type: 'ADD_HISTORY', payload: 'Autoplay stopped.' });
+      // Clear AI turn timeout immediately when stopping autoplay
+      if (aiTurnTimeoutRef.current) {
+        clearTimeout(aiTurnTimeoutRef.current);
+        aiTurnTimeoutRef.current = null;
+      }
+      // Clear any pending game over restart timeout
+      if (gameOverTimeoutRef.current) {
+        clearTimeout(gameOverTimeoutRef.current);
+        gameOverTimeoutRef.current = null;
+      }
+      console.log("[AUTOPLAY] Autoplay stopped.");
+      logHandSizes("After Autoplay Stop", hands);
     }
-    console.log("[AUTOPLAY] Autoplay stopped.");
-    logHandSizes("After Autoplay Stop", hands);
   };
 
   const handleStartNewGame = () => {
-    // Dispatch INITIALIZE_GAME, passing current autoplay status
-    dispatch({ type: 'INITIALIZE_GAME', payload: { isAutoplaying: state.isAutoplaying } });
+    // When starting a new game manually, we assume autoplay is OFF initially
+    // unless the user explicitly clicks start autoplay after this.
+    dispatch({ type: 'INITIALIZE_GAME', payload: { isAutoplaying: false } }); // <--- Default to human playing
   }
+
+  // Determine if Player 1's interactions should be disabled
+  const isPlayerOneDisabled = isAutoplaying || gameOver || currentPlayer !== 0;
 
   return (
     <div className="container mx-auto p-4">
@@ -196,11 +246,15 @@ function App() {
           {[0, 1, 2, 3].map(player => (
             <div
               key={player}
-              className={`bg-[#fffdf7] p-4 rounded-2xl shadow-md border-2 border-[#e2dccc] ${currentPlayer === player && !gameOver && !isAutoplaying ? 'border-indigo-500 ring-4 ring-indigo-200' : ''}`}
+              className={`bg-[#fffdf7] p-4 rounded-2xl shadow-md border-2 border-[#e2dccc] ${currentPlayer === player && !gameOver && (!isAutoplaying || player === 0) ? 'border-indigo-500 ring-4 ring-indigo-200' : ''}`}
             >
               <div className="flex flex-col gap-2">
                 <div className="font-semibold text-gray-800 text-left">
                   Player {player + 1}
+                  {/* Indicate if current player is AI (only if autoplaying) */}
+                  {currentPlayer === player && isAutoplaying && (
+                    <span className="ml-2 text-sm text-gray-500">(AI)</span>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-1 justify-left" style={{ minHeight: '6rem' }}>
@@ -210,24 +264,27 @@ function App() {
                         key={index}
                         card={card}
                         onClick={() => {
+                          // Only allow human player (player 0) to click if not in autoplay and not game over
                           if (player === 0 && !isAutoplaying && !gameOver) {
                             if (card.color === 'wild') {
                               let chosenColor = null;
-                              while (!chosenColor || !colors.includes(chosenColor)) {
+                              while (!chosenColor || !colors.includes(chosenColor) || chosenColor.length === 0) { // Added check for empty string
                                 chosenColor = prompt('Choose a color: red, blue, green, or yellow').toLowerCase();
                                 if (!colors.includes(chosenColor)) {
                                   alert('Invalid color chosen. Please choose red, blue, green, or yellow.');
                                 }
                               }
-                              dispatch({ type: 'PLAY_CARD', payload: { card, playerIndex: 0, chosenWildColor } });
+                              dispatch({ type: 'PLAY_CARD', payload: { card, playerIndex: 0, chosenWildColor: chosenColor } });
                             } else {
                               dispatch({ type: 'PLAY_CARD', payload: { card, playerIndex: 0 } });
                             }
                           }
                         }}
+                        // Disable if not current player, or if autoplaying, or if game over, or if card is unplayable
                         isDisabled={
                           (player !== currentPlayer) || isAutoplaying || gameOver || (player === currentPlayer && !canPlayCardUI(card, topCard))
                         }
+                        // Make clickable only if it's Player 0's turn, not autoplaying, not game over, and card is playable
                         isClickable={player === 0 && player === currentPlayer && !isAutoplaying && !gameOver && canPlayCardUI(card, topCard)}
                       />
                     ))
@@ -242,16 +299,7 @@ function App() {
               </div>
             </div>
           ))}
-          {/* Draw Card button for Player 1 */}
-          {/* <div className="text-center mt-4">
-            <button
-              className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors duration-200 text-lg font-semibold"
-              onClick={() => dispatch({ type: 'DRAW_CARD', payload: { playerIndex: 0, drawnByAI: false } })}
-              disabled={currentPlayer !== 0 || isAutoplaying || gameOver}
-            >
-              Draw Card
-            </button>
-          </div> */}
+         
         </div>
 
         {/* Top Card section aligned to match full height */}
@@ -270,16 +318,19 @@ function App() {
           <div className="flex justify-center gap-4 mb-6">
             <button
               className={`px-6 py-3 rounded-lg text-white text-lg font-semibold transition-colors duration-200
-                ${isAutoplaying
-                  ? 'bg-red-600 hover:bg-red-700'
-                  : 'bg-green-600 hover:bg-green-700'}
-                ${gameOver ? 'opacity-50 cursor-not-allowed' : ''}`}
+                ${!isAutoplaying // If NOT autoplaying, make it green "Start Autoplay"
+                  ? 'bg-green-600 hover:bg-green-700'
+                  : 'bg-red-600 hover:bg-red-700'} // If autoplaying, make it red "Stop Autoplay"
+                ${(gameOver && !isAutoplaying) ? 'opacity-50 cursor-not-allowed' : ''} // If game over AND not autoplaying, disable
+                `}
               onClick={isAutoplaying ? handleStopAutoplay : handleStartAutoplay}
-              disabled={gameOver && !isAutoplaying}
+              disabled={!isAutoplaying && gameOver} // Disabled if not autoplaying and game is over (user should click Start New Game)
             >
               {isAutoplaying ? 'Stop Autoplay' : 'Start Autoplay'}
             </button>
-            {gameOver && !isAutoplaying && (
+
+            {/* Start New Game button */}
+            {gameOver && ( // This button should always be available if game is over
               <button
                 className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors duration-200 text-lg font-semibold"
                 onClick={handleStartNewGame}
@@ -289,7 +340,7 @@ function App() {
             )}
           </div>
 
-          <div className="w-full md:w-190 bg-gray-100 p-6 rounded-lg shadow-lg max-h-[50vh] overflow-y-auto">
+          <div className="w-full md:w-96 bg-gray-100 p-6 rounded-lg shadow-lg max-h-[50vh] overflow-y-auto">
             <h2 className="text-2xl font-semibold mb-4 text-gray-800 border-b pb-2">Game History</h2>
             <ul className="list-disc list-inside text-base text-gray-700 space-y-2">
               {history.map((entry, index) => (
