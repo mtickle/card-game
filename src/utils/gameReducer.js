@@ -1,11 +1,13 @@
 // src/gameReducer.js
 
 import { saveGameToStorage, saveTurnLogToStorage } from '@/utils/storageUtils';
+
 import { v4 as uuidv4 } from 'uuid';
 
 const colors = ['red', 'blue', 'green', 'yellow'];
 const values = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'Skip', 'Reverse', 'Draw Two'];
 const wilds = ['Wild', 'Wild Draw Four'];
+
 
 // Helper functions (could be moved out for pure reducer, but useful here)
 const createDeck = () => {
@@ -122,6 +124,7 @@ export function gameReducer(state, action) {
                 currentPlayer: 0,
                 direction: 1,
                 isAutoplaying: action.payload?.isAutoplaying ?? false,
+                gameId: action.payload?.gameId ?? uuidv4(),
             };
             //console.log("[REDUCER] State AFTER INITIALIZE_GAME:", newState);
             return newState;
@@ -288,7 +291,7 @@ export function gameReducer(state, action) {
                     timestamp: Date.now(),
                 },
             };
-            console.log("[REDUCER] State AFTER DRAW_CARD:", newState);
+            //console.log("[REDUCER] State AFTER DRAW_CARD:", newState);
 
             //--- Let's try some logging here.
             //--- HERE IS WHERE WE SHALL LOG newState
@@ -318,7 +321,7 @@ export function gameReducer(state, action) {
             const { winnerIndex, finalScores, turnLog } = action.payload;
 
             const finishedGame = {
-                gameId: uuidv4(),
+                gameId: state.gameId,
                 timestamp: Date.now(),
                 players: state.players,
                 winner: state.players?.[winnerIndex]?.name || `Player ${winnerIndex + 1}`,
@@ -328,7 +331,7 @@ export function gameReducer(state, action) {
 
             saveGameToStorage(finishedGame);
             saveTurnLogToStorage(finishedGame.gameId, finishedGame.turnLog);
-            setLastFinishedGameId(gameId);
+            console.log(finishedGame.gameId)
 
             return {
                 ...state,

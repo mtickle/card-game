@@ -1,10 +1,11 @@
 // src/App.jsx
+import TurnLogTable from '@components/TurnLogTable';
 import Header from '@layouts/Header';
 import { colors } from '@utils/colorUtils';
 import { gameReducer, initialGameState } from '@utils/gameReducer';
 import { formatTurnLog } from '@utils/gameUtils';
 import { useCallback, useEffect, useReducer, useRef } from 'react';
-import Card, { getCardIcon, getColorClass, WinnerCard } from './components/Card';
+import Card, { getCardIcon, WinnerCard } from './components/Card';
 import { useLastGameId } from './hooks/useLastGameId';
 import { handleStartAutoplay, handleStartNewGame, handleStopAutoplay } from './utils/handleUtils';
 
@@ -28,14 +29,6 @@ function App() {
 
   const aiTurnTimeoutRef = useRef(null);
   const gameOverTimeoutRef = useRef(null); // New ref for game over pause
-
-  // Helper for logging hand sizes - adjusted for reducer state
-  // const logHandSizes = useCallback((action, currentHandsState) => {
-  //   const targetHands = currentHandsState || hands;
-  //   const sizes = targetHands.map((hand, index) => `P${index + 1}: ${hand.length}`);
-  //   console.log(`[HANDS DEBUG] ${action} - ${sizes.join(', ')}`);
-  // }, [hands]);
-
 
   // --- Card Playability Check ---
   const canPlayCardUI = useCallback((card, currentTopCard) => {
@@ -156,12 +149,6 @@ function App() {
     return undefined;
   }, [currentPlayer, hands, topCard, isAutoplaying, gameOver, playAI, chooseWildColor, dispatch]);
 
-  useEffect(() => {
-    if (state.gameOver && state.gameId) {
-      setLastFinishedGameId(state.gameId);
-    }
-  }, [state.gameOver, state.gameId]);
-
   // --- Game Over Auto-Restart Logic ---
   useEffect(() => {
     if (gameOver && isAutoplaying) {
@@ -184,6 +171,9 @@ function App() {
           turnLog: state.turnLog,
         }
       });
+
+
+
       dispatch({ type: 'ADD_HISTORY', payload: `Game over! New game starting in 3 seconds...` });
 
       gameOverTimeoutRef.current = setTimeout(() => {
@@ -210,6 +200,45 @@ function App() {
     }
     return undefined;
   }, [gameOver, isAutoplaying, dispatch]);
+
+  useEffect(() => {
+    if (state.gameOver && state.gameId) {
+      setLastFinishedGameId(state.gameId);
+    }
+  }, [state.gameOver, state.gameId]);
+
+  function getColorClass(color, type = 'card') {
+    const colors = {
+      red: {
+        card: 'bg-red-500 text-white',
+        border: 'border-red-700',
+      },
+      blue: {
+        card: 'bg-blue-500 text-white',
+        border: 'border-blue-700',
+      },
+      green: {
+        card: 'bg-green-500 text-white',
+        border: 'border-green-700',
+      },
+      yellow: {
+        card: 'bg-yellow-400 text-black',
+        border: 'border-yellow-600',
+      },
+      wild: {
+        card: 'bg-gradient-to-r from-purple-500 via-black to-red-500 text-white',
+        border: 'border-gray-700',
+      },
+    };
+
+    const fallback = {
+      card: 'bg-gray-300 text-black',
+      border: 'border-gray-500',
+    };
+
+    return colors[color]?.[type] || fallback[type];
+  }
+
 
   return (
     <div className="container mx-auto p-4">
@@ -315,17 +344,46 @@ function App() {
             )}
           </div>
 
-          <div className="w-full md:w-96 bg-gray-100 p-6 rounded-lg shadow-lg max-h-[50vh] overflow-y-auto">
-            <h2 className="text-2xl font-semibold mb-4 text-gray-800 border-b pb-2">Game History</h2>
-            <ul className="list-disc list-inside text-base text-gray-700 space-y-2">
-              {history.map((entry, index) => (
-                <li key={index} className="border-b border-gray-200 pb-1 last:border-b-0">{entry}</li>
-              ))}
+          <div className="w-full md:w-120 bg-gray-100 p-6 rounded-lg shadow-lg max-h-[40vh] overflow-y-auto">
+            <h3 className="text-1xl font-semibold mb-4 text-gray-800 border-b pb-2">Game History</h3>
+            <ul className="list-none text-base text-gray-700 space-y-2 text-1xl">
+              {history.map((entry, index) => {
+                const match = entry.match(/(P\d) played (\w+) (\w+)/);
+                if (match) {
+                  const [, player, color, value] = match;
+                  return (
+                    <li key={index} className="flex items-center gap-2 border-b border-gray-200 pb-1 last:border-b-0">
+                      <span className="text-gray-800 font-medium">{player} played</span>
+                      <span
+                        className={`inline-block px-2 py-1 text-sm rounded-full text-white font-bold shadow`}
+                        style={{ backgroundColor: getColorClass(color) }}
+                      >
+                        {value}
+                      </span>
+                    </li>
+                  );
+                }
+
+                // Fallback to plain text for other entries
+                return (
+                  <li key={index} className="border-b border-gray-200 pb-1 last:border-b-0">
+                    {entry}
+                  </li>
+                );
+              })}
             </ul>
           </div>
-          {lastFinishedGameId && <UnoTurnLogTable gameId={lastFinishedGameId} />}
+
+
         </div>
       </div>
+
+      <div className="mb-4 border border-gray-200 bg-white shadow-sm rounded-t-2xl rounded-b-2xl overflow-hidden">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-6 py-4 shadow-md flex justify-between items-center rounded-t-2xl">
+          <h3 className="text-1xl font-semibold tracking-tight">📊 Game Statistics</h3>
+        </div>{lastFinishedGameId && <TurnLogTable gameId={lastFinishedGameId} />}
+      </div>
+
     </div>
   );
 }

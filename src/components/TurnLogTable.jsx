@@ -23,6 +23,7 @@ const TurnLogTable = ({ gameId }) => {
                         <th className="text-left px-4 py-2">Player</th>
                         <th className="text-left px-4 py-2">Action</th>
                         <th className="text-left px-4 py-2">Card</th>
+                        <th className="text-left px-4 py-2">Actual Card</th>
                         <th className="text-left px-4 py-2">Time</th>
                     </tr>
                 </thead>
@@ -31,6 +32,7 @@ const TurnLogTable = ({ gameId }) => {
                         <tr key={i} className="border-t border-gray-200 hover:bg-gray-50">
                             <td className="px-4 py-2">{turn.player}</td>
                             <td className="px-4 py-2">{turn.action}</td>
+                            <td className="px-4 py-2">{turn.card.value}</td>
                             <td className="px-4 py-2">
                                 {turn.card ? (
                                     <span className={`inline-block px-2 py-1 text-sm font-medium rounded text-white bg-${turn.card.color}-600`}>
