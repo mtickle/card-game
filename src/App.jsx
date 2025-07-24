@@ -2,6 +2,7 @@
 import Header from '@layouts/Header';
 import { colors } from '@utils/colorUtils';
 import { gameReducer, initialGameState } from '@utils/gameReducer';
+import { formatTurnLog } from '@utils/gameUtils';
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import Card, { getCardIcon, getColorClass, WinnerCard } from './components/Card';
 import { handleStartAutoplay, handleStartNewGame, handleStopAutoplay } from './utils/handleUtils';
@@ -90,6 +91,18 @@ function App() {
     };
   }, [hands.length, deck.length, topCard, dispatch]); // dependencies for effect
 
+  //--- Logging??
+  useEffect(() => {
+    if (!state.lastAction) return;
+
+    const logEntry = formatTurnLog({
+      ...state.lastAction,
+      players: state.players,
+    });
+
+    dispatch({ type: 'LOG_TURN', payload: logEntry, formatTurnLog });
+  }, [state.lastAction]);
+
 
   // --- AI Turn Effect (handles all AI players, including Player 0 if autoplaying) ---
   useEffect(() => {
@@ -156,6 +169,14 @@ function App() {
         clearTimeout(gameOverTimeoutRef.current);
       }
       console.log("GAME OVER HERE, CREATE LOG")
+      dispatch({
+        type: 'GAME_OVER',
+        payload: {
+          winnerIndex: currentPlayer,
+          //finalScores: calculateFinalScores(state),
+          turnLog: state.turnLog,
+        }
+      });
       dispatch({ type: 'ADD_HISTORY', payload: `Game over! New game starting in 3 seconds...` });
 
       gameOverTimeoutRef.current = setTimeout(() => {

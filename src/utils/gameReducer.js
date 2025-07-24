@@ -1,5 +1,8 @@
 // src/gameReducer.js
 
+import { saveGameToStorage } from '@/utils/storageUtils';
+import { v4 as uuidv4 } from 'uuid';
+
 const colors = ['red', 'blue', 'green', 'yellow'];
 const values = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'Skip', 'Reverse', 'Draw Two'];
 const wilds = ['Wild', 'Wild Draw Four'];
@@ -68,7 +71,8 @@ export const initialGameState = {
     isAutoplaying: true, // <--- CHANGE THIS TO TRUE
     gameOver: false,
     winner: null,
-    finalScores: [], // Will be populated when game ends, if needed elsewhere
+    finalScores: [],
+    turnLog: [],  // Will be populated when game ends, if needed elsewhere
 };
 
 // The Reducer Function
@@ -218,6 +222,14 @@ export function gameReducer(state, action) {
             return newState;
         }
 
+        case 'LOG_TURN': {
+            const newLog = [...state.turnLog, action.payload];
+            return {
+                ...state,
+                turnLog: newLog,
+            };
+        }
+
         case 'DRAW_CARD': {
             const { playerIndex } = action.payload; // No need for drawnByAI, logic is same
             const { hands, deck, currentPlayer, direction, gameOver } = state;
@@ -259,8 +271,18 @@ export function gameReducer(state, action) {
                 history: [historyMessage, ...state.history],
                 gameMessage: `Player ${playerIndex + 1} drew a card. Player ${nextPlayerIdx + 1}'s turn.`,
                 currentPlayer: nextPlayerIdx,
+                lastAction: {
+                    type: 'DRAW',
+                    playerIndex,
+                    card: drawnCard,
+                    timestamp: Date.now(),
+                },
             };
-            //console.log("[REDUCER] State AFTER DRAW_CARD:", newState);
+            console.log("[REDUCER] State AFTER DRAW_CARD:", newState);
+
+            //--- Let's try some logging here.
+            //--- HERE IS WHERE WE SHALL LOG newState
+
             return newState;
         }
 
@@ -282,8 +304,32 @@ export function gameReducer(state, action) {
             return newState;
         }
 
+        case 'GAME_OVER': {
+            const { winnerIndex, finalScores, turnLog } = action.payload;
+
+            const finishedGame = {
+                gameId: uuidv4(),
+                timestamp: Date.now(),
+                players: state.players,
+                winner: state.players?.[winnerIndex]?.name || `Player ${winnerIndex + 1}`,
+                finalScores,
+                turnLog,
+            };
+
+            saveGameToStorage(finishedGame);
+
+            return {
+                ...state,
+                gameOver: true,
+                gameMessage: `Game over! ${finishedGame.winner} wins!`,
+                history: [`🎉 ${finishedGame.winner} wins the game!`, ...state.history],
+            };
+        }
+
+
         default:
             console.warn(`[REDUCER] Unknown action type: ${action.type}`);
             return state;
     }
 }
+
