@@ -1,6 +1,6 @@
 // src/gameReducer.js
 
-import { saveGameToStorage } from '@/utils/storageUtils';
+import { saveGameToStorage, saveTurnLogToStorage } from '@/utils/storageUtils';
 import { v4 as uuidv4 } from 'uuid';
 
 const colors = ['red', 'blue', 'green', 'yellow'];
@@ -129,7 +129,7 @@ export function gameReducer(state, action) {
 
         case 'PLAY_CARD': {
             const { card, playerIndex, chosenWildColor } = action.payload;
-            const { hands, deck, topCard, currentPlayer, direction, gameOver } = state;
+            const { hands, deck, topCard, currentPlayer, direction, gameOver, turnLog } = state;
 
             if (gameOver || playerIndex !== currentPlayer || !canPlayCard(card, topCard)) {
                 const message = gameOver ? "Game is over!" :
@@ -195,13 +195,23 @@ export function gameReducer(state, action) {
             // Check for winner
             const winner = newHands[playerIndex].length === 0 ? playerIndex : state.winner;
             const gameOverStatus = winner !== null;
-            let finalScoresMessage = ''; // New variable for score message
+            let finalScoresMessage = '';
 
             if (gameOverStatus) {
                 const calculatedScores = calculateGameScore(newHands, winner);
                 finalScoresMessage = `Final scores: ${calculatedScores.map((score, idx) => `P${idx + 1}: ${score}`).join(', ')}`;
                 historyMessage = `Game over! Player ${winner + 1} wins! ${finalScoresMessage}`;
             }
+
+            const updatedTurnLog = [
+                ...turnLog,
+                {
+                    player: `Player ${playerIndex + 1}`,
+                    action: "Played a card",
+                    card: { color: card.color, value: card.value },
+                    timestamp: Date.now()
+                }
+            ];
 
             const newState = {
                 ...state,
@@ -211,16 +221,16 @@ export function gameReducer(state, action) {
                 currentPlayer: nextPlayerIdx,
                 direction: newDirection,
                 gameMessage: gameOverStatus ? `Player ${winner + 1} wins!` : `Player ${nextPlayerIdx + 1}'s turn.`,
-                history: [historyMessage, ...state.history], // Add the full message here
+                history: [historyMessage, ...state.history],
                 gameOver: gameOverStatus,
                 winner: winner,
-                // finalScores is no longer needed in state if only displayed in history
-                // We'll keep it for now but it won't be used by UI element
                 finalScores: gameOverStatus ? calculateGameScore(newHands, winner) : [],
+                turnLog: updatedTurnLog
             };
-            //console.log("[REDUCER] State AFTER PLAY_CARD:", newState);
+
             return newState;
         }
+
 
         case 'LOG_TURN': {
             const newLog = [...state.turnLog, action.payload];
@@ -317,6 +327,8 @@ export function gameReducer(state, action) {
             };
 
             saveGameToStorage(finishedGame);
+            saveTurnLogToStorage(finishedGame.gameId, finishedGame.turnLog);
+            setLastFinishedGameId(gameId);
 
             return {
                 ...state,

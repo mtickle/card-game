@@ -20,3 +20,20 @@ export const saveGameToStorage = (finishedGame) => {
 
     localStorage.setItem('savedUnoGames', JSON.stringify(updated));
 };
+
+
+export const saveTurnLogToStorage = (gameId, turnLog) => {
+    if (!gameId || !Array.isArray(turnLog)) {
+        console.warn('[Storage] Invalid gameId or turnLog:', { gameId, turnLog });
+        return;
+    }
+
+    const existingRaw = JSON.parse(localStorage.getItem('unoTurnLogs') || '{}');
+
+    const updated = {
+        ...existingRaw,
+        [gameId]: turnLog
+    };
+
+    localStorage.setItem('unoTurnLogs', JSON.stringify(updated));
+};

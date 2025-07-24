@@ -5,10 +5,12 @@ import { gameReducer, initialGameState } from '@utils/gameReducer';
 import { formatTurnLog } from '@utils/gameUtils';
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import Card, { getCardIcon, getColorClass, WinnerCard } from './components/Card';
+import { useLastGameId } from './hooks/useLastGameId';
 import { handleStartAutoplay, handleStartNewGame, handleStopAutoplay } from './utils/handleUtils';
 
 function App() {
 
+  const [lastFinishedGameId, setLastFinishedGameId] = useLastGameId();
   const [state, dispatch] = useReducer(gameReducer, initialGameState);
   const {
     deck,
@@ -154,6 +156,11 @@ function App() {
     return undefined;
   }, [currentPlayer, hands, topCard, isAutoplaying, gameOver, playAI, chooseWildColor, dispatch]);
 
+  useEffect(() => {
+    if (state.gameOver && state.gameId) {
+      setLastFinishedGameId(state.gameId);
+    }
+  }, [state.gameOver, state.gameId]);
 
   // --- Game Over Auto-Restart Logic ---
   useEffect(() => {
@@ -316,7 +323,7 @@ function App() {
               ))}
             </ul>
           </div>
-
+          {lastFinishedGameId && <UnoTurnLogTable gameId={lastFinishedGameId} />}
         </div>
       </div>
     </div>
