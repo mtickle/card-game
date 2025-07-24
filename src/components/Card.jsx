@@ -1,6 +1,16 @@
 // src/components/Card.jsx
 import { Palette, Plus, SkipForward, Undo2 } from 'lucide-react';
 
+// Add a simple "WinnerCard" component or integrate its styles directly
+export const WinnerCard = () => (
+    <div
+        className="w-14 h-20 rounded-xl shadow-md flex items-center justify-center text-5xl font-extrabold bg-green-500 text-white border-4 border-green-700 animate-pulse-once"
+        style={{ minWidth: '6rem', minHeight: '9rem' }} // Ensure it maintains card size
+    >
+        🏆
+    </div>
+);
+
 // Helper function to get the icon/value for a card
 export const getCardIcon = (value) => {
     switch (value) {
@@ -25,7 +35,7 @@ export const getCardIcon = (value) => {
                 </div>
             );
         default:
-            return <span className="text-2xl font-bold">{value}</span>;
+            return <span className="text-1xl font-bold">{value}</span>;
     }
 };
 
@@ -53,7 +63,7 @@ const Card = ({ card, onClick, isDisabled, isClickable }) => {
     const { color, value } = card;
 
     const baseClasses = `
-        w-20 h-28 rounded-xl shadow-md flex items-center justify-center text-lg font-bold transition-all duration-200 ease-in-out
+        w-14 h-20 rounded-xl shadow-md flex items-center justify-center text-lg font-bold transition-all duration-200 ease-in-out
         ${getColorClass(color, 'card')}
         ${isClickable ? 'cursor-pointer hover:scale-105' : ''}
         ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}
