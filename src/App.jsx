@@ -1,24 +1,12 @@
 // src/App.jsx
 import Header from '@layouts/Header';
+import { colors } from '@utils/colorUtils';
 import { gameReducer, initialGameState } from '@utils/gameReducer';
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import Card, { getCardIcon, getColorClass, WinnerCard } from './components/Card';
-
-// CSS for animate-pulse-once (add this to your App.css or index.css)
-/*
-@keyframes pulse-once {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.05); opacity: 0.9; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-.animate-pulse-once {
-  animation: pulse-once 1s ease-in-out;
-}
-*/
+import { handleStartAutoplay, handleStartNewGame, handleStopAutoplay } from './utils/handleUtils';
 
 function App() {
-  const colors = ['red', 'blue', 'green', 'yellow'];
 
   const [state, dispatch] = useReducer(gameReducer, initialGameState);
   const {
@@ -39,11 +27,11 @@ function App() {
   const gameOverTimeoutRef = useRef(null); // New ref for game over pause
 
   // Helper for logging hand sizes - adjusted for reducer state
-  const logHandSizes = useCallback((action, currentHandsState) => {
-    const targetHands = currentHandsState || hands;
-    const sizes = targetHands.map((hand, index) => `P${index + 1}: ${hand.length}`);
-    console.log(`[HANDS DEBUG] ${action} - ${sizes.join(', ')}`);
-  }, [hands]);
+  // const logHandSizes = useCallback((action, currentHandsState) => {
+  //   const targetHands = currentHandsState || hands;
+  //   const sizes = targetHands.map((hand, index) => `P${index + 1}: ${hand.length}`);
+  //   console.log(`[HANDS DEBUG] ${action} - ${sizes.join(', ')}`);
+  // }, [hands]);
 
 
   // --- Card Playability Check ---
@@ -83,7 +71,6 @@ function App() {
     }
     return null; // No playable card
   }, [canPlayCardUI]);
-
 
   // --- Initial Game Setup Effect (runs once on component mount or on new game) ---
   useEffect(() => {
@@ -162,12 +149,13 @@ function App() {
       if (aiTurnTimeoutRef.current) {
         clearTimeout(aiTurnTimeoutRef.current);
         aiTurnTimeoutRef.current = null;
+
       }
       // Clear any previous game over timeout
       if (gameOverTimeoutRef.current) {
         clearTimeout(gameOverTimeoutRef.current);
       }
-
+      console.log("GAME OVER HERE, CREATE LOG")
       dispatch({ type: 'ADD_HISTORY', payload: `Game over! New game starting in 3 seconds...` });
 
       gameOverTimeoutRef.current = setTimeout(() => {
@@ -194,47 +182,6 @@ function App() {
     }
     return undefined;
   }, [gameOver, isAutoplaying, dispatch]);
-
-
-  // --- Autoplay Control Handlers ---
-  const handleStartAutoplay = () => {
-    if (!isAutoplaying) { // Only start if not already autoplaying
-      dispatch({ type: 'SET_AUTOPLAY', payload: true });
-      dispatch({ type: 'UPDATE_MESSAGE', payload: "Autoplay started! AI vs AI." });
-      dispatch({ type: 'ADD_HISTORY', payload: 'Autoplay started.' });
-      console.log("[AUTOPLAY] Autoplay started.");
-      logHandSizes("After Autoplay Start", hands);
-    }
-  };
-
-  const handleStopAutoplay = () => {
-    if (isAutoplaying) { // Only stop if currently autoplaying
-      dispatch({ type: 'SET_AUTOPLAY', payload: false });
-      dispatch({ type: 'UPDATE_MESSAGE', payload: `Autoplay stopped. Player ${currentPlayer + 1}'s turn.` });
-      dispatch({ type: 'ADD_HISTORY', payload: 'Autoplay stopped.' });
-      // Clear AI turn timeout immediately when stopping autoplay
-      if (aiTurnTimeoutRef.current) {
-        clearTimeout(aiTurnTimeoutRef.current);
-        aiTurnTimeoutRef.current = null;
-      }
-      // Clear any pending game over restart timeout
-      if (gameOverTimeoutRef.current) {
-        clearTimeout(gameOverTimeoutRef.current);
-        gameOverTimeoutRef.current = null;
-      }
-      console.log("[AUTOPLAY] Autoplay stopped.");
-      logHandSizes("After Autoplay Stop", hands);
-    }
-  };
-
-  const handleStartNewGame = () => {
-    // When starting a new game manually, we assume autoplay is OFF initially
-    // unless the user explicitly clicks start autoplay after this.
-    dispatch({ type: 'INITIALIZE_GAME', payload: { isAutoplaying: false } }); // <--- Default to human playing
-  }
-
-  // Determine if Player 1's interactions should be disabled
-  const isPlayerOneDisabled = isAutoplaying || gameOver || currentPlayer !== 0;
 
   return (
     <div className="container mx-auto p-4">
@@ -299,7 +246,7 @@ function App() {
               </div>
             </div>
           ))}
-         
+
         </div>
 
         {/* Top Card section aligned to match full height */}

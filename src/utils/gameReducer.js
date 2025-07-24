@@ -73,8 +73,8 @@ export const initialGameState = {
 
 // The Reducer Function
 export function gameReducer(state, action) {
-    console.log(`[REDUCER] Action: ${action.type}`, action); // Log every action
-    console.log("[REDUCER] State BEFORE:", state);
+    //console.log(`[REDUCER] Action: ${action.type}`, action); // Log every action
+    //console.log("[REDUCER] State BEFORE:", state);
 
     switch (action.type) {
         case 'INITIALIZE_GAME': {
@@ -119,7 +119,7 @@ export function gameReducer(state, action) {
                 direction: 1,
                 isAutoplaying: action.payload?.isAutoplaying ?? false,
             };
-            console.log("[REDUCER] State AFTER INITIALIZE_GAME:", newState);
+            //console.log("[REDUCER] State AFTER INITIALIZE_GAME:", newState);
             return newState;
         }
 
@@ -214,7 +214,7 @@ export function gameReducer(state, action) {
                 // We'll keep it for now but it won't be used by UI element
                 finalScores: gameOverStatus ? calculateGameScore(newHands, winner) : [],
             };
-            console.log("[REDUCER] State AFTER PLAY_CARD:", newState);
+            //console.log("[REDUCER] State AFTER PLAY_CARD:", newState);
             return newState;
         }
 
@@ -244,7 +244,7 @@ export function gameReducer(state, action) {
                     history: [historyMessage, ...state.history],
                     currentPlayer: nextPlayerIdx,
                 };
-                console.log("[REDUCER] State AFTER DRAW_CARD (Deck Empty):", newState);
+                //console.log("[REDUCER] State AFTER DRAW_CARD (Deck Empty):", newState);
                 return newState;
             }
 
@@ -260,25 +260,25 @@ export function gameReducer(state, action) {
                 gameMessage: `Player ${playerIndex + 1} drew a card. Player ${nextPlayerIdx + 1}'s turn.`,
                 currentPlayer: nextPlayerIdx,
             };
-            console.log("[REDUCER] State AFTER DRAW_CARD:", newState);
+            //console.log("[REDUCER] State AFTER DRAW_CARD:", newState);
             return newState;
         }
 
         case 'SET_AUTOPLAY': {
             const newState = { ...state, isAutoplaying: action.payload };
-            console.log("[REDUCER] State AFTER SET_AUTOPLAY:", newState);
+            //console.log("[REDUCER] State AFTER SET_AUTOPLAY:", newState);
             return newState;
         }
 
         case 'UPDATE_MESSAGE': {
             const newState = { ...state, gameMessage: action.payload };
-            console.log("[REDUCER] State AFTER UPDATE_MESSAGE:", newState);
+            //console.log("[REDUCER] State AFTER UPDATE_MESSAGE:", newState);
             return newState;
         }
 
         case 'ADD_HISTORY': { // New action to just add a history entry
             const newState = { ...state, history: [action.payload, ...state.history] };
-            console.log("[REDUCER] State AFTER ADD_HISTORY:", newState);
+            //console.log("[REDUCER] State AFTER ADD_HISTORY:", newState);
             return newState;
         }
 
