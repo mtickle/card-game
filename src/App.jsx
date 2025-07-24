@@ -298,27 +298,6 @@ function App() {
             </ul>
           </div>
 
-          {gameOver && winner !== null && (
-            <div className="bg-white border-l-8 border-green-500 p-6 rounded-xl shadow-xl mb-6 animate-fade-in">
-              <h2 className="text-2xl font-bold text-green-700 mb-2 text-center">
-                🎉 Player {winner + 1} wins!
-              </h2>
-              <h3 className="text-lg font-semibold text-gray-800 mb-4 text-center">Final Scores</h3>
-              <ul className="grid grid-cols-2 gap-2 text-gray-700 text-base font-medium">
-                {finalScores.map((score, index) => (
-                  <li
-                    key={index}
-                    className={`p-3 rounded-lg text-center ${index === winner
-                      ? 'bg-green-100 border border-green-400 font-bold'
-                      : 'bg-gray-100'
-                      }`}
-                  >
-                    Player {index + 1}: {score} pts
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       </div>
     </div>

@@ -78,21 +78,22 @@ export function gameReducer(state, action) {
 
     switch (action.type) {
         case 'INITIALIZE_GAME': {
-            let newDeck = createDeck();
-            const newHands = dealCards(newDeck, 4);
+            let deckToUse = createDeck(); // Renamed to avoid confusion
+            const newHands = dealCards(deckToUse, 4); // Use deckToUse for dealing
 
             let startingTopCard = null;
-            let tempDeck = [...newDeck]; // Use a temp copy to find starting card
+            // IMPORTANT: Create a *new* tempDeck from the *current* deckToUse after dealing
+            let tempDeckForTopCard = [...deckToUse];
             let attempts = 0;
-            while (attempts < 50 && tempDeck.length > 0) {
-                const drawnCard = tempDeck.pop();
+            while (attempts < 50 && tempDeckForTopCard.length > 0) {
+                const drawnCard = tempDeckForTopCard.pop();
                 if (drawnCard.value !== 'Skip' && drawnCard.value !== 'Reverse' && drawnCard.value !== 'Draw Two' && drawnCard.color !== 'wild') {
                     startingTopCard = drawnCard;
-                    newDeck = tempDeck; // The remaining deck is now the actual new deck
+                    deckToUse = tempDeckForTopCard; // Update the main deckToUse after finding the starting card
                     break;
                 } else {
-                    tempDeck.unshift(drawnCard); // Put non-playable card back to bottom
-                    tempDeck.sort(() => Math.random() - 0.5); // Reshuffle to avoid infinite loop on specific card sequence
+                    tempDeckForTopCard.unshift(drawnCard);
+                    tempDeckForTopCard.sort(() => Math.random() - 0.5); // Reshuffle to avoid infinite loop on specific card sequence
                 }
                 attempts++;
             }
@@ -100,14 +101,13 @@ export function gameReducer(state, action) {
             if (!startingTopCard) {
                 console.error("[REDUCER] Failed to find a valid starting top card after many attempts. Defaulting.");
                 startingTopCard = { color: 'red', value: '1' };
+                // If we default, the deckToUse should remain what it was before trying to find a starting card
+                // This means we might have put cards back that we drew, which is fine.
             }
 
-            // Ensure deck reflects cards popped for hands and topCard
-            newDeck = [...newDeck]; // Make sure it's a new array reference
-
             const newState = {
-                ...initialGameState, // Reset to initial defaults
-                deck: newDeck,
+                ...initialGameState,
+                deck: [...deckToUse], // Ensure we pass a fresh copy of the final deck state
                 hands: newHands,
                 topCard: startingTopCard,
                 gameMessage: "New game started. Player 1's turn!",
@@ -117,7 +117,7 @@ export function gameReducer(state, action) {
                 finalScores: [],
                 currentPlayer: 0,
                 direction: 1,
-                isAutoplaying: action.payload?.isAutoplaying ?? false, // Maintain autoplay state if re-initializing
+                isAutoplaying: action.payload?.isAutoplaying ?? false,
             };
             console.log("[REDUCER] State AFTER INITIALIZE_GAME:", newState);
             return newState;
@@ -128,7 +128,6 @@ export function gameReducer(state, action) {
             const { hands, deck, topCard, currentPlayer, direction, gameOver } = state;
 
             if (gameOver || playerIndex !== currentPlayer || !canPlayCard(card, topCard)) {
-                // Invalid play, return current state without changes
                 const message = gameOver ? "Game is over!" :
                     playerIndex !== currentPlayer ? `It's not Player ${playerIndex + 1}'s turn!` :
                         `Invalid move for Player ${playerIndex + 1}!`;
@@ -142,14 +141,12 @@ export function gameReducer(state, action) {
             const newHands = hands.map(h => [...h]); // Deep copy hands
             const newDeck = [...deck];
 
-            // 1. Remove played card from hand
             const cardIndex = newHands[playerIndex].findIndex(c => c.color === card.color && c.value === card.value);
             if (cardIndex > -1) {
                 newHands[playerIndex].splice(cardIndex, 1);
             } else {
                 console.warn(`[REDUCER] Card to play not found in P${playerIndex + 1}'s hand:`, card);
-                // This shouldn't happen with correct canPlayCard logic, but good for debug.
-                return state; // Prevent invalid state from propagating
+                return state;
             }
 
             let nextPlayerIdx = (currentPlayer + direction + 4) % 4;
@@ -158,7 +155,6 @@ export function gameReducer(state, action) {
             let historyMessage = `Player ${playerIndex + 1} played ${card.color} ${card.value}.`;
             let newTopCard = { ...card };
 
-            // Apply card effects
             if (card.value === 'Reverse') {
                 newDirection = -direction;
                 historyMessage += ` Direction reversed.`;
@@ -195,7 +191,13 @@ export function gameReducer(state, action) {
             // Check for winner
             const winner = newHands[playerIndex].length === 0 ? playerIndex : state.winner;
             const gameOverStatus = winner !== null;
-            const finalScores = gameOverStatus ? calculateGameScore(newHands, winner) : [];
+            let finalScoresMessage = ''; // New variable for score message
+
+            if (gameOverStatus) {
+                const calculatedScores = calculateGameScore(newHands, winner);
+                finalScoresMessage = `Final scores: ${calculatedScores.map((score, idx) => `P${idx + 1}: ${score}`).join(', ')}`;
+                historyMessage = `Game over! Player ${winner + 1} wins! ${finalScoresMessage}`;
+            }
 
             const newState = {
                 ...state,
@@ -205,17 +207,19 @@ export function gameReducer(state, action) {
                 currentPlayer: nextPlayerIdx,
                 direction: newDirection,
                 gameMessage: gameOverStatus ? `Player ${winner + 1} wins!` : `Player ${nextPlayerIdx + 1}'s turn.`,
-                history: [historyMessage, ...state.history],
+                history: [historyMessage, ...state.history], // Add the full message here
                 gameOver: gameOverStatus,
                 winner: winner,
-                finalScores: finalScores,
+                // finalScores is no longer needed in state if only displayed in history
+                // We'll keep it for now but it won't be used by UI element
+                finalScores: gameOverStatus ? calculateGameScore(newHands, winner) : [],
             };
             console.log("[REDUCER] State AFTER PLAY_CARD:", newState);
             return newState;
         }
 
         case 'DRAW_CARD': {
-            const { playerIndex, drawnByAI } = action.payload;
+            const { playerIndex } = action.payload; // No need for drawnByAI, logic is same
             const { hands, deck, currentPlayer, direction, gameOver } = state;
 
             if (gameOver || playerIndex !== currentPlayer) {
@@ -248,7 +252,6 @@ export function gameReducer(state, action) {
             newHands[playerIndex].push(drawnCard);
             historyMessage = `Player ${playerIndex + 1} drew a ${drawnCard.color} ${drawnCard.value} card.`;
 
-            // No winner check on drawing, only playing
             const newState = {
                 ...state,
                 hands: newHands,
@@ -273,8 +276,14 @@ export function gameReducer(state, action) {
             return newState;
         }
 
+        case 'ADD_HISTORY': { // New action to just add a history entry
+            const newState = { ...state, history: [action.payload, ...state.history] };
+            console.log("[REDUCER] State AFTER ADD_HISTORY:", newState);
+            return newState;
+        }
+
         default:
             console.warn(`[REDUCER] Unknown action type: ${action.type}`);
-            return state; // Always return current state for unknown actions
+            return state;
     }
 }
