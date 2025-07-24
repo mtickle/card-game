@@ -22,7 +22,7 @@ export const getCardIcon = (value) => {
             return (
                 <div className="flex items-center gap-1">
                     <Plus size={20} />
-                    <Plus size={20} />
+                    2
                 </div>
             );
         case 'Wild':

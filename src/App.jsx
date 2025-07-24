@@ -243,7 +243,7 @@ function App() {
             </div>
           ))}
           {/* Draw Card button for Player 1 */}
-          <div className="text-center mt-4">
+          {/* <div className="text-center mt-4">
             <button
               className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors duration-200 text-lg font-semibold"
               onClick={() => dispatch({ type: 'DRAW_CARD', payload: { playerIndex: 0, drawnByAI: false } })}
@@ -251,7 +251,7 @@ function App() {
             >
               Draw Card
             </button>
-          </div>
+          </div> */}
         </div>
 
         {/* Top Card section aligned to match full height */}
@@ -289,7 +289,7 @@ function App() {
             )}
           </div>
 
-          <div className="w-full md:w-96 bg-gray-100 p-6 rounded-lg shadow-lg max-h-[30vh] overflow-y-auto">
+          <div className="w-full md:w-190 bg-gray-100 p-6 rounded-lg shadow-lg max-h-[50vh] overflow-y-auto">
             <h2 className="text-2xl font-semibold mb-4 text-gray-800 border-b pb-2">Game History</h2>
             <ul className="list-disc list-inside text-base text-gray-700 space-y-2">
               {history.map((entry, index) => (

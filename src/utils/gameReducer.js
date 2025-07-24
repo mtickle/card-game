@@ -152,7 +152,7 @@ export function gameReducer(state, action) {
             let nextPlayerIdx = (currentPlayer + direction + 4) % 4;
             let cardsToDraw = [];
             let newDirection = direction;
-            let historyMessage = `Player ${playerIndex + 1} played ${card.color} ${card.value}.`;
+            let historyMessage = `P${playerIndex + 1} played ${card.color} ${card.value}.`;
             let newTopCard = { ...card };
 
             if (card.value === 'Reverse') {
@@ -163,7 +163,7 @@ export function gameReducer(state, action) {
                     historyMessage += ` Player ${nextPlayerIdx + 1} is skipped (due to 2 players).`;
                 }
             } else if (card.value === 'Skip') {
-                historyMessage += ` Player ${nextPlayerIdx + 1} is skipped.`;
+                historyMessage += ` P${nextPlayerIdx + 1} is skipped.`;
                 nextPlayerIdx = (nextPlayerIdx + direction + 4) % 4;
             } else if (card.value === 'Draw Two') {
                 const playerToDraw = (currentPlayer + direction + 4) % 4;
@@ -171,7 +171,7 @@ export function gameReducer(state, action) {
                     if (newDeck.length > 0) cardsToDraw.push(newDeck.pop());
                 }
                 newHands[playerToDraw] = [...newHands[playerToDraw], ...cardsToDraw];
-                historyMessage += ` Player ${playerToDraw + 1} draws two cards.`;
+                historyMessage += ` P${playerToDraw + 1} draws two cards.`;
                 nextPlayerIdx = (nextPlayerIdx + direction + 4) % 4;
             } else if (card.value === 'Wild Draw Four') {
                 const playerToDraw = (currentPlayer + direction + 4) % 4;
@@ -179,7 +179,7 @@ export function gameReducer(state, action) {
                     if (newDeck.length > 0) cardsToDraw.push(newDeck.pop());
                 }
                 newHands[playerToDraw] = [...newHands[playerToDraw], ...cardsToDraw];
-                historyMessage += ` Player ${playerToDraw + 1} draws four cards.`;
+                historyMessage += ` P${playerToDraw + 1} draws four cards.`;
                 nextPlayerIdx = (nextPlayerIdx + direction + 4) % 4;
             }
 
@@ -250,7 +250,7 @@ export function gameReducer(state, action) {
 
             const drawnCard = newDeck.pop();
             newHands[playerIndex].push(drawnCard);
-            historyMessage = `Player ${playerIndex + 1} drew a ${drawnCard.color} ${drawnCard.value} card.`;
+            historyMessage = `P${playerIndex + 1} drew a ${drawnCard.color} ${drawnCard.value} card and passed.`;
 
             const newState = {
                 ...state,
