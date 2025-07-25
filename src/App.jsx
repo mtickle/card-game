@@ -322,16 +322,31 @@ function App() {
           <div className="flex justify-center gap-4 mb-6">
             <button
               className={`px-6 py-3 rounded-lg text-white text-lg font-semibold transition-colors duration-200
-                ${!isAutoplaying // If NOT autoplaying, make it green "Start Autoplay"
+    ${!isAutoplaying
                   ? 'bg-green-600 hover:bg-green-700'
-                  : 'bg-red-600 hover:bg-red-700'} // If autoplaying, make it red "Stop Autoplay"
-                ${(gameOver && !isAutoplaying) ? 'opacity-50 cursor-not-allowed' : ''} // If game over AND not autoplaying, disable
-                `}
-              onClick={isAutoplaying ? handleStopAutoplay : handleStartAutoplay}
-              disabled={!isAutoplaying && gameOver} // Disabled if not autoplaying and game is over (user should click Start New Game)
+                  : 'bg-red-600 hover:bg-red-700'}
+    ${(gameOver && !isAutoplaying) ? 'opacity-50 cursor-not-allowed' : ''}`}
+              onClick={() =>
+                isAutoplaying
+                  ? handleStopAutoplay({
+                    dispatch,
+                    currentPlayer,
+                    aiTurnTimeoutRef,
+                    gameOverTimeoutRef,
+                    hands,
+                  })
+                  : handleStartAutoplay({
+                    dispatch,
+                    currentPlayer,
+                    isAutoplaying,
+                  })
+              }
+              disabled={!isAutoplaying && gameOver}
             >
               {isAutoplaying ? 'Stop Autoplay' : 'Start Autoplay'}
             </button>
+
+
 
             {/* Start New Game button */}
             {gameOver && ( // This button should always be available if game is over
@@ -348,29 +363,104 @@ function App() {
             <h3 className="text-1xl font-semibold mb-4 text-gray-800 border-b pb-2">Game History</h3>
             <ul className="list-none text-base text-gray-700 space-y-2 text-1xl">
               {history.map((entry, index) => {
-                const match = entry.match(/(P\d) played (\w+) (\w+)/);
-                if (match) {
-                  const [, player, color, value] = match;
+                const playedMatch = entry.match(/(P\d) played (\w+) (\w+)/);
+                const drewMatch = entry.match(/(P\d) drew a (\w+) (\w+) card/);
+                const skipMatch = entry.match(/(P\d) was skipped/);
+                const reverseMatch = entry.match(/Play direction reversed/);
+                const stopMatch = entry.match(/Autoplay stopped./);
+                const startMatch = entry.match(/Autoplay started./);
+                const drawMatch = entry.match(/(P\d) had to draw (\d)/);                
+                const passMatch = entry.match(/(P\d) passed/);
+                const wildDraw4Match = entry.match(/(P\d) Wild Draw Four/);
+
+                if (playedMatch) {
+                  const [, player, color, value] = playedMatch;
                   return (
-                    <li key={index} className="flex items-center gap-2 border-b border-gray-200 pb-1 last:border-b-0">
-                      <span className="text-gray-800 font-medium">{player} played</span>
-                      <span
-                        className={`inline-block px-2 py-1 text-sm rounded-full text-white font-bold shadow`}
-                        style={{ backgroundColor: getColorClass(color) }}
-                      >
+                    <li key={index}>
+                      🎯 <span className="font-semibold text-gray-600">{player}</span> played{' '}
+                      <span className={`inline-block px-2 py-1 text-sm rounded-full font-bold shadow ${getColorClass(color, 'card')}`}>
                         {value}
                       </span>
                     </li>
                   );
+                } else if (drewMatch) {
+                  const [, player, color, value] = drewMatch;
+                  return (
+                    <li key={index}>
+                      🃏 <span className="font-semibold text-gray-600">{player}</span> drew{' '}
+                      <span className={`inline-block px-2 py-1 text-sm rounded-full font-bold shadow ${getColorClass(color, 'card')}`}>
+                        {value}
+                      </span>{' '}
+                      and passed
+                    </li>
+                  );
+                } else if (stopMatch) {
+                  return (
+                    <li key={index}>
+                      🛑 Autoplay was stopped.
+                    </li>
+                  );
+                } else if (startMatch) {
+                  return (
+                    <li key={index}>
+                      ✅ Autoplay was started.
+                    </li>
+                  );
+                } else if (skipMatch) {
+                  const [, player] = skipMatch;
+                  return (
+                    <li key={index}>
+                      ⏭️ <span className="font-semibold text-gray-600">{player}</span> was <span className="text-red-500 font-bold">skipped</span>
+                    </li>
+                  );
+                } else if (wildDraw4Match) {
+                  const [, player] = skipMatch;
+                  return (
+                    <li key={index}>
+                      ⏭️ <span className="font-semibold text-gray-600">{player}</span> was <span className="text-red-500 font-bold">WILLLDD</span>
+                    </li>
+                  );
+                } else if (reverseMatch) {
+                  return (
+                    <li key={index}>
+                      🔁 <span className="text-blue-700 font-bold">Play direction reversed</span>
+                    </li>
+                  );
+                } else if (drawMatch) {
+                  const [, player, count] = drawMatch;
+                  return (
+                    <li key={index}>
+                      ➕<span className="text-red-600 font-bold">{count}</span> <span className="font-semibold text-gray-600">{player}</span> drew <span className="text-red-600 font-bold">{count} cards</span>
+                    </li>
+                  );
+                } else {
+                  const wildChoiceMatch = entry.match(/(P\d) played Wild and chose (\w+)/);
+                  if (wildChoiceMatch) {
+                    const [, player, color] = wildChoiceMatch;
+                    return (
+                      <li key={index}>
+                        🌈 <span className="font-semibold text-gray-600">{player}</span> played{' '}
+                        <span className="font-bold text-purple-700">Wild</span> and chose{' '}
+                        <span className={`inline-block px-2 py-1 text-sm rounded-full font-bold shadow ${getColorClass(color, 'card')}`}>
+                          {color}
+                        </span>
+                      </li>
+                    );
+                  } else if (passMatch) {
+                    const [, player] = passMatch;
+                    return (
+                      <li key={index}>
+                        🚫 <span className="font-semibold text-gray-600">{player}</span> passed
+                      </li>
+                    );
+                  } else {
+                    // fallback: raw string
+                    return <li key={index}>{entry}</li>;
+                  }
                 }
-
-                // Fallback to plain text for other entries
-                return (
-                  <li key={index} className="border-b border-gray-200 pb-1 last:border-b-0">
-                    {entry}
-                  </li>
-                );
               })}
+
+
             </ul>
           </div>
 

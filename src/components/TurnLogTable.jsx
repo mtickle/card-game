@@ -14,6 +14,14 @@ const TurnLogTable = ({ gameId }) => {
 
     if (!turns.length) return <div className="text-gray-400 p-4">No turn log found for this game.</div>;
 
+    const colorClassMap = {
+        red: 'bg-red-600',
+        blue: 'bg-blue-600',
+        green: 'bg-green-600',
+        yellow: 'bg-yellow-500',
+        wild: 'bg-gradient-to-r from-purple-500 via-black to-red-500',
+    };
+
     return (
         <div className="overflow-x-auto p-4">
             <h2 className="text-xl font-bold mb-4">Turn Log for Game {gameId}</h2>
@@ -22,7 +30,6 @@ const TurnLogTable = ({ gameId }) => {
                     <tr>
                         <th className="text-left px-4 py-2">Player</th>
                         <th className="text-left px-4 py-2">Action</th>
-                        <th className="text-left px-4 py-2">Card</th>
                         <th className="text-left px-4 py-2">Actual Card</th>
                         <th className="text-left px-4 py-2">Time</th>
                     </tr>
@@ -32,10 +39,12 @@ const TurnLogTable = ({ gameId }) => {
                         <tr key={i} className="border-t border-gray-200 hover:bg-gray-50">
                             <td className="px-4 py-2">{turn.player}</td>
                             <td className="px-4 py-2">{turn.action}</td>
-                            <td className="px-4 py-2">{turn.card.value}</td>
                             <td className="px-4 py-2">
                                 {turn.card ? (
-                                    <span className={`inline-block px-2 py-1 text-sm font-medium rounded text-white bg-${turn.card.color}-600`}>
+                                    <span
+                                        className={`inline-block px-2 py-1 text-sm font-medium rounded text-white ${colorClassMap[turn.card.color] || 'bg-gray-400'
+                                            }`}
+                                    >
                                         {turn.card.value}
                                     </span>
                                 ) : (

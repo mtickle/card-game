@@ -12,13 +12,13 @@ export const saveGameToStorage = (finishedGame) => {
         return;
     }
 
-    const existingRaw = JSON.parse(localStorage.getItem('savedUnoGames') || '[]');
+    const existingRaw = JSON.parse(localStorage.getItem('savedCardGames') || '[]');
     const existing = existingRaw.filter(g => g && g.gameId); // clean old data
 
     const updated = existing.filter(g => g.gameId !== gameId);
     updated.push(finishedGame);
 
-    localStorage.setItem('savedUnoGames', JSON.stringify(updated));
+    localStorage.setItem('savedCardGames', JSON.stringify(updated));
 };
 
 
@@ -28,12 +28,12 @@ export const saveTurnLogToStorage = (gameId, turnLog) => {
         return;
     }
 
-    const existingRaw = JSON.parse(localStorage.getItem('unoTurnLogs') || '{}');
+    const existingRaw = JSON.parse(localStorage.getItem('cardGameTurnLogs') || '{}');
 
     const updated = {
         ...existingRaw,
         [gameId]: turnLog
     };
 
-    localStorage.setItem('unoTurnLogs', JSON.stringify(updated));
+    localStorage.setItem('cardGameTurnLogs', JSON.stringify(updated));
 };
