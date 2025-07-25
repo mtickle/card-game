@@ -4,7 +4,7 @@ const TurnLogTable = ({ gameId }) => {
     const [turns, setTurns] = useState([]);
 
     useEffect(() => {
-        const raw = localStorage.getItem('unoTurnLogs');
+        const raw = localStorage.getItem('cardGameTurnLogs');
         if (!raw) return;
 
         const allLogs = JSON.parse(raw);
