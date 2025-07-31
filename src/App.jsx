@@ -1,9 +1,7 @@
-// src/App.jsx
 import TurnLogTable from '@components/TurnLogTable';
 import Header from '@layouts/Header';
 import { colors } from '@utils/colorUtils';
 import { gameReducer, initialGameState } from '@utils/gameReducer';
-import { formatTurnLog } from '@utils/gameUtils';
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import Card, { getCardIcon, WinnerCard } from './components/Card';
 import { useLastGameId } from './hooks/useLastGameId';
@@ -21,10 +19,9 @@ function App() {
     gameMessage,
     history,
     direction,
-    isAutoplaying, // This will now start as true from initialGameState
+    isAutoplaying,
     gameOver,
     winner,
-    // finalScores is no longer needed for direct UI rendering
   } = state;
 
   const aiTurnTimeoutRef = useRef(null);
@@ -70,10 +67,10 @@ function App() {
 
   // --- Initial Game Setup Effect (runs once on component mount or on new game) ---
   useEffect(() => {
-    // Only initialize if the game hasn't started yet or if we're explicitly starting a new game
-    // The initialGameState.isAutoplaying is now true, so we initialize immediately
+    // Only initialize if the game hasn't started yet
     if (hands.length === 0 && deck.length === 0 && !topCard) {
-      dispatch({ type: 'INITIALIZE_GAME', payload: { isAutoplaying: true } }); // Start with autoplay on initial load
+      // Set isAutoplaying to false on initial load.
+      dispatch({ type: 'INITIALIZE_GAME', payload: { isAutoplaying: false } });
     }
     // Cleanup timeout if component unmounts
     return () => {
@@ -86,17 +83,17 @@ function App() {
     };
   }, [hands.length, deck.length, topCard, dispatch]); // dependencies for effect
 
-  //--- Logging??
-  useEffect(() => {
-    if (!state.lastAction) return;
+  //--- Logging
+  // useEffect(() => {
+  //   if (!state.lastAction) return;
 
-    const logEntry = formatTurnLog({
-      ...state.lastAction,
-      players: state.players,
-    });
+  //   const logEntry = formatTurnLog({
+  //     ...state.lastAction,
+  //     players: state.players,
+  //   });
 
-    dispatch({ type: 'LOG_TURN', payload: logEntry, formatTurnLog });
-  }, [state.lastAction]);
+  //   dispatch({ type: 'LOG_TURN', payload: logEntry, formatTurnLog });
+  // }, [state.lastAction]);
 
 
   // --- AI Turn Effect (handles all AI players, including Player 0 if autoplaying) ---
@@ -167,12 +164,9 @@ function App() {
         type: 'GAME_OVER',
         payload: {
           winnerIndex: currentPlayer,
-          //finalScores: calculateFinalScores(state),
           turnLog: state.turnLog,
         }
       });
-
-
 
       dispatch({ type: 'ADD_HISTORY', payload: `Game over! New game starting in 3 seconds...` });
 
@@ -199,13 +193,13 @@ function App() {
       }
     }
     return undefined;
-  }, [gameOver, isAutoplaying, dispatch]);
+  }, [gameOver, isAutoplaying, dispatch, state.turnLog, currentPlayer]);
 
   useEffect(() => {
     if (state.gameOver && state.gameId) {
       setLastFinishedGameId(state.gameId);
     }
-  }, [state.gameOver, state.gameId]);
+  }, [state.gameOver, state.gameId, setLastFinishedGameId]);
 
   function getColorClass(color, type = 'card') {
     const colors = {
@@ -352,7 +346,7 @@ function App() {
             {gameOver && ( // This button should always be available if game is over
               <button
                 className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors duration-200 text-lg font-semibold"
-                onClick={handleStartNewGame}
+                onClick={() => handleStartNewGame({ dispatch })}
               >
                 Start New Game
               </button>
@@ -369,7 +363,7 @@ function App() {
                 const reverseMatch = entry.match(/Play direction reversed/);
                 const stopMatch = entry.match(/Autoplay stopped./);
                 const startMatch = entry.match(/Autoplay started./);
-                const drawMatch = entry.match(/(P\d) had to draw (\d)/);                
+                const drawMatch = entry.match(/(P\d) had to draw (\d)/);
                 const passMatch = entry.match(/(P\d) passed/);
                 const wildDraw4Match = entry.match(/(P\d) Wild Draw Four/);
 
@@ -414,10 +408,10 @@ function App() {
                     </li>
                   );
                 } else if (wildDraw4Match) {
-                  const [, player] = skipMatch;
+                  const [, player] = wildDraw4Match;
                   return (
                     <li key={index}>
-                      ⏭️ <span className="font-semibold text-gray-600">{player}</span> was <span className="text-red-500 font-bold">WILLLDD</span>
+                      ➕4️⃣ <span className="font-semibold text-gray-600">{player}</span> played a <span className="font-bold text-purple-700">Wild Draw 4</span>
                     </li>
                   );
                 } else if (reverseMatch) {

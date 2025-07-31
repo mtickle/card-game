@@ -1,21 +1,17 @@
-// src/gameReducer.js
-
 import { saveGameToStorage, saveTurnLogToStorage } from '@/utils/storageUtils';
-
 import { v4 as uuidv4 } from 'uuid';
 
 const colors = ['red', 'blue', 'green', 'yellow'];
 const values = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'Skip', 'Reverse', 'Draw Two'];
 const wilds = ['Wild', 'Wild Draw Four'];
 
-
-// Helper functions (could be moved out for pure reducer, but useful here)
+// --- Helper Functions (Restored) ---
 const createDeck = () => {
     let deck = [];
     colors.forEach(color => {
         values.forEach(value => {
             deck.push({ color, value });
-            if (value !== '0') deck.push({ color, value }); // Two of each card except 0
+            if (value !== '0') deck.push({ color, value });
         });
     });
     wilds.forEach(wild => {
@@ -44,7 +40,6 @@ const dealCards = (deck, numPlayers = 4) => {
 const calculateGameScore = (currentHands, winnerIdx) => {
     return currentHands.map((hand, index) => {
         if (index === winnerIdx) return 0;
-
         return hand.reduce((total, card) => {
             if (['Draw Two', 'Reverse', 'Skip'].includes(card.value)) return total + 20;
             if (['Wild', 'Wild Draw Four'].includes(card.value)) return total + 50;
@@ -61,132 +56,115 @@ const canPlayCard = (card, currentTopCard) => {
 };
 
 
-// Initial State for the game
+// Initial State
 export const initialGameState = {
     deck: [],
     hands: [],
     topCard: null,
-    currentPlayer: -1, // -1 or 0, indicating game not started or player 1's turn
+    currentPlayer: -1,
     gameMessage: "Welcome to React UNO! Click 'Start Autoplay' or 'Start New Game'.",
     history: [],
-    direction: 1, // 1 for clockwise, -1 for counter-clockwise
-    isAutoplaying: true, // <--- CHANGE THIS TO TRUE
+    direction: 1,
+    isAutoplaying: false,
     gameOver: false,
     winner: null,
     finalScores: [],
-    turnLog: [],  // Will be populated when game ends, if needed elsewhere
+    turnLog: [],
+    turnNumber: 0,
 };
 
 // The Reducer Function
 export function gameReducer(state, action) {
-    //console.log(`[REDUCER] Action: ${action.type}`, action); // Log every action
-    //console.log("[REDUCER] State BEFORE:", state);
-
     switch (action.type) {
         case 'INITIALIZE_GAME': {
-            let deckToUse = createDeck(); // Renamed to avoid confusion
-            const newHands = dealCards(deckToUse, 4); // Use deckToUse for dealing
-
+            // This logic is now fully restored
+            let deckToUse = createDeck();
+            const newHands = dealCards(deckToUse, 4);
             let startingTopCard = null;
-            // IMPORTANT: Create a *new* tempDeck from the *current* deckToUse after dealing
             let tempDeckForTopCard = [...deckToUse];
             let attempts = 0;
             while (attempts < 50 && tempDeckForTopCard.length > 0) {
                 const drawnCard = tempDeckForTopCard.pop();
                 if (drawnCard.value !== 'Skip' && drawnCard.value !== 'Reverse' && drawnCard.value !== 'Draw Two' && drawnCard.color !== 'wild') {
                     startingTopCard = drawnCard;
-                    deckToUse = tempDeckForTopCard; // Update the main deckToUse after finding the starting card
+                    deckToUse = tempDeckForTopCard;
                     break;
                 } else {
                     tempDeckForTopCard.unshift(drawnCard);
-                    tempDeckForTopCard.sort(() => Math.random() - 0.5); // Reshuffle to avoid infinite loop on specific card sequence
+                    tempDeckForTopCard.sort(() => Math.random() - 0.5);
                 }
                 attempts++;
             }
-
             if (!startingTopCard) {
-                console.error("[REDUCER] Failed to find a valid starting top card after many attempts. Defaulting.");
+                console.error("[REDUCER] Failed to find a valid starting top card. Defaulting.");
                 startingTopCard = { color: 'red', value: '1' };
-                // If we default, the deckToUse should remain what it was before trying to find a starting card
-                // This means we might have put cards back that we drew, which is fine.
             }
-
-            const newState = {
+            return {
                 ...initialGameState,
-                deck: [...deckToUse], // Ensure we pass a fresh copy of the final deck state
+                deck: [...deckToUse],
                 hands: newHands,
                 topCard: startingTopCard,
                 gameMessage: "New game started. Player 1's turn!",
                 history: ['New game started'],
-                gameOver: false,
-                winner: null,
-                finalScores: [],
                 currentPlayer: 0,
-                direction: 1,
                 isAutoplaying: action.payload?.isAutoplaying ?? false,
                 gameId: action.payload?.gameId ?? uuidv4(),
+                turnNumber: 1,
             };
-            //console.log("[REDUCER] State AFTER INITIALIZE_GAME:", newState);
-            return newState;
         }
 
         case 'PLAY_CARD': {
             const { card, playerIndex, chosenWildColor } = action.payload;
-            const { hands, deck, topCard, currentPlayer, direction, gameOver, turnLog } = state;
+            const { hands, deck, topCard, currentPlayer, direction, gameOver, turnLog, turnNumber } = state;
 
             if (gameOver || playerIndex !== currentPlayer || !canPlayCard(card, topCard)) {
-                const message = gameOver ? "Game is over!" :
-                    playerIndex !== currentPlayer ? `It's not Player ${playerIndex + 1}'s turn!` :
-                        `Invalid move for Player ${playerIndex + 1}!`;
-                return {
-                    ...state,
-                    gameMessage: message,
-                    history: [`${message} (Attempted by P${playerIndex + 1})`, ...state.history]
-                };
+                return state;
             }
 
-            const newHands = hands.map(h => [...h]); // Deep copy hands
-            const newDeck = [...deck];
+            const formatDrawnCards = (cards) => {
+                if (!cards || cards.length === 0) return "";
+                const cardStrings = cards.map(c => `${c.color} ${c.value}`);
+                return `(drew: ${cardStrings.join(', ')})`;
+            };
 
+            const newHands = hands.map(h => [...h]);
+            const newDeck = [...deck];
             const cardIndex = newHands[playerIndex].findIndex(c => c.color === card.color && c.value === card.value);
             if (cardIndex > -1) {
                 newHands[playerIndex].splice(cardIndex, 1);
             } else {
-                console.warn(`[REDUCER] Card to play not found in P${playerIndex + 1}'s hand:`, card);
                 return state;
             }
 
             let nextPlayerIdx = (currentPlayer + direction + 4) % 4;
             let cardsToDraw = [];
             let newDirection = direction;
-            let historyMessage = `P${playerIndex + 1} played ${card.color} ${card.value}.`;
+            let historyMessage = `Turn ${turnNumber}: P${playerIndex + 1} played ${card.color} ${card.value}.`;
             let newTopCard = { ...card };
+            let penalty = null;
 
             if (card.value === 'Reverse') {
                 newDirection = -direction;
                 historyMessage += ` Direction reversed.`;
                 if (newHands.length === 2) {
-                    nextPlayerIdx = (nextPlayerIdx + newDirection + 4) % 4;
-                    historyMessage += ` Player ${nextPlayerIdx + 1} is skipped (due to 2 players).`;
+                    nextPlayerIdx = (currentPlayer - direction + 4) % 4;
                 }
             } else if (card.value === 'Skip') {
                 historyMessage += ` P${nextPlayerIdx + 1} is skipped.`;
                 nextPlayerIdx = (nextPlayerIdx + direction + 4) % 4;
             } else if (card.value === 'Draw Two') {
-                const playerToDraw = (currentPlayer + direction + 4) % 4;
-                for (let i = 0; i < 2; i++) {
-                    if (newDeck.length > 0) cardsToDraw.push(newDeck.pop());
-                }
-                newHands[playerToDraw] = [...newHands[playerToDraw], ...cardsToDraw];
-                historyMessage += ` P${playerToDraw + 1} draws two cards.`;
+                const playerToDrawIdx = (currentPlayer + direction + 4) % 4;
+                for (let i = 0; i < 2; i++) { if (newDeck.length > 0) cardsToDraw.push(newDeck.pop()); }
+                newHands[playerToDrawIdx].push(...cardsToDraw);
+                penalty = { penalizedPlayer: playerToDrawIdx, cardsDrawn: cardsToDraw, count: 2 };
+                historyMessage += ` P${playerToDrawIdx + 1} draws ${penalty.count} cards. ${formatDrawnCards(penalty.cardsDrawn)}`;
                 nextPlayerIdx = (nextPlayerIdx + direction + 4) % 4;
             } else if (card.value === 'Wild Draw Four') {
-                const playerToDraw = (currentPlayer + direction + 4) % 4;
-                for (let i = 0; i < 4; i++) {
-                    if (newDeck.length > 0) cardsToDraw.push(newDeck.pop());
-                }
-                newHands[playerToDraw] = [...newHands[playerToDraw], ...cardsToDraw];
-                historyMessage += ` P${playerToDraw + 1} draws four cards.`;
+                const playerToDrawIdx = (currentPlayer + direction + 4) % 4;
+                for (let i = 0; i < 4; i++) { if (newDeck.length > 0) cardsToDraw.push(newDeck.pop()); }
+                newHands[playerToDrawIdx].push(...cardsToDraw);
+                penalty = { penalizedPlayer: playerToDrawIdx, cardsDrawn: cardsToDraw, count: 4 };
+                historyMessage += ` P${playerToDrawIdx + 1} draws ${penalty.count} cards. ${formatDrawnCards(penalty.cardsDrawn)}`;
                 nextPlayerIdx = (nextPlayerIdx + direction + 4) % 4;
             }
 
@@ -195,130 +173,111 @@ export function gameReducer(state, action) {
                 historyMessage += ` Wild color chosen: ${chosenWildColor}.`;
             }
 
-            // Check for winner
             const winner = newHands[playerIndex].length === 0 ? playerIndex : state.winner;
             const gameOverStatus = winner !== null;
-            let finalScoresMessage = '';
-
             if (gameOverStatus) {
-                const calculatedScores = calculateGameScore(newHands, winner);
-                finalScoresMessage = `Final scores: ${calculatedScores.map((score, idx) => `P${idx + 1}: ${score}`).join(', ')}`;
-                historyMessage = `Game over! Player ${winner + 1} wins! ${finalScoresMessage}`;
+                const finalScores = calculateGameScore(newHands, winner);
+                historyMessage = `🎉 Turn ${turnNumber}: Game over! Player ${winner + 1} wins! Final scores: ${finalScores.map((score, idx) => `P${idx + 1}: ${score}`).join(', ')}`;
             }
 
             const updatedTurnLog = [
                 ...turnLog,
                 {
+                    turn: turnNumber,
                     player: `Player ${playerIndex + 1}`,
-                    action: "Played a card",
+                    type: 'PLAY',
                     card: { color: card.color, value: card.value },
+                    wildColorChoice: chosenWildColor,
+                    penalty,
                     timestamp: Date.now()
                 }
             ];
 
-            const newState = {
+            return {
                 ...state,
                 hands: newHands,
                 deck: newDeck,
                 topCard: newTopCard,
-                currentPlayer: nextPlayerIdx,
+                currentPlayer: gameOverStatus ? -1 : nextPlayerIdx,
                 direction: newDirection,
                 gameMessage: gameOverStatus ? `Player ${winner + 1} wins!` : `Player ${nextPlayerIdx + 1}'s turn.`,
                 history: [historyMessage, ...state.history],
                 gameOver: gameOverStatus,
                 winner: winner,
                 finalScores: gameOverStatus ? calculateGameScore(newHands, winner) : [],
-                turnLog: updatedTurnLog
-            };
-
-            return newState;
-        }
-
-
-        case 'LOG_TURN': {
-            const newLog = [...state.turnLog, action.payload];
-            return {
-                ...state,
-                turnLog: newLog,
+                turnLog: updatedTurnLog,
+                turnNumber: gameOverStatus ? state.turnNumber : state.turnNumber + 1,
             };
         }
 
         case 'DRAW_CARD': {
-            const { playerIndex } = action.payload; // No need for drawnByAI, logic is same
-            const { hands, deck, currentPlayer, direction, gameOver } = state;
+            const { playerIndex } = action.payload;
+            const { hands, deck, currentPlayer, direction, gameOver, turnNumber, turnLog } = state;
 
             if (gameOver || playerIndex !== currentPlayer) {
-                const message = gameOver ? "Game is over!" : `It's not Player ${playerIndex + 1}'s turn to draw!`;
-                return {
-                    ...state,
-                    gameMessage: message,
-                    history: [`${message} (Attempted by P${playerIndex + 1})`, ...state.history]
-                };
+                return state;
             }
 
             const newHands = hands.map(h => [...h]);
             const newDeck = [...deck];
-            let historyMessage = '';
-            let nextPlayerIdx = (currentPlayer + direction + 4) % 4;
+            const nextPlayerIdx = (currentPlayer + direction + 4) % 4;
 
             if (newDeck.length === 0) {
-                historyMessage = `Player ${playerIndex + 1} tried to draw, but deck is empty. Turn passes.`;
-                const newState = {
+                const historyMessage = `Turn ${turnNumber}: Player ${playerIndex + 1} tried to draw, but deck is empty. Turn passes.`;
+                return {
                     ...state,
-                    gameMessage: `No cards left to draw for Player ${playerIndex + 1}! Turn passes.`,
+                    gameMessage: `No cards left to draw! Turn passes.`,
                     history: [historyMessage, ...state.history],
                     currentPlayer: nextPlayerIdx,
+                    turnNumber: state.turnNumber + 1,
                 };
-                //console.log("[REDUCER] State AFTER DRAW_CARD (Deck Empty):", newState);
-                return newState;
             }
 
             const drawnCard = newDeck.pop();
             newHands[playerIndex].push(drawnCard);
-            historyMessage = `P${playerIndex + 1} drew a ${drawnCard.color} ${drawnCard.value} card and passed.`;
 
-            const newState = {
+            const historyMessage = `Turn ${turnNumber}: P${playerIndex + 1} drew a ${drawnCard.color} ${drawnCard.value} card and passed.`;
+
+            const newTurnLog = [
+                ...turnLog,
+                {
+                    turn: turnNumber,
+                    player: `Player ${playerIndex + 1}`,
+                    type: 'DRAW_PASS',
+                    card: drawnCard,
+                    wildColorChoice: null,
+                    penalty: null,
+                    timestamp: Date.now()
+                }
+            ];
+
+            return {
                 ...state,
                 hands: newHands,
                 deck: newDeck,
                 history: [historyMessage, ...state.history],
                 gameMessage: `Player ${playerIndex + 1} drew a card. Player ${nextPlayerIdx + 1}'s turn.`,
                 currentPlayer: nextPlayerIdx,
-                lastAction: {
-                    type: 'DRAW',
-                    playerIndex,
-                    card: drawnCard,
-                    timestamp: Date.now(),
-                },
+                turnNumber: state.turnNumber + 1,
+                turnLog: newTurnLog,
             };
-            //console.log("[REDUCER] State AFTER DRAW_CARD:", newState);
-
-            //--- Let's try some logging here.
-            //--- HERE IS WHERE WE SHALL LOG newState
-
-            return newState;
         }
 
         case 'SET_AUTOPLAY': {
-            const newState = { ...state, isAutoplaying: action.payload };
-            //console.log("[REDUCER] State AFTER SET_AUTOPLAY:", newState);
-            return newState;
+            return { ...state, isAutoplaying: action.payload };
         }
 
         case 'UPDATE_MESSAGE': {
-            const newState = { ...state, gameMessage: action.payload };
-            //console.log("[REDUCER] State AFTER UPDATE_MESSAGE:", newState);
-            return newState;
+            return { ...state, gameMessage: action.payload };
         }
 
-        case 'ADD_HISTORY': { // New action to just add a history entry
-            const newState = { ...state, history: [action.payload, ...state.history] };
-            //console.log("[REDUCER] State AFTER ADD_HISTORY:", newState);
-            return newState;
+        case 'ADD_HISTORY': {
+            return { ...state, history: [action.payload, ...state.history] };
         }
 
         case 'GAME_OVER': {
-            const { winnerIndex, finalScores, turnLog } = action.payload;
+            const { winnerIndex, turnLog } = action.payload;
+            const finalScores = calculateGameScore(state.hands, winnerIndex);
 
             const finishedGame = {
                 gameId: state.gameId,
@@ -328,23 +287,19 @@ export function gameReducer(state, action) {
                 finalScores,
                 turnLog,
             };
-
             saveGameToStorage(finishedGame);
             saveTurnLogToStorage(finishedGame.gameId, finishedGame.turnLog);
-            console.log(finishedGame.gameId)
 
             return {
                 ...state,
                 gameOver: true,
                 gameMessage: `Game over! ${finishedGame.winner} wins!`,
                 history: [`🎉 ${finishedGame.winner} wins the game!`, ...state.history],
+                finalScores,
             };
         }
 
-
         default:
-            console.warn(`[REDUCER] Unknown action type: ${action.type}`);
             return state;
     }
 }
-
