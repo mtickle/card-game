@@ -18,6 +18,8 @@ export default defineConfig({
       '@utils': path.resolve(__dirname, 'src/utils'),
       '@hooks': path.resolve(__dirname, 'src/hooks'),
       '@config': path.resolve(__dirname, 'src/config'),
+      '@app': path.resolve(__dirname, 'src/app'),
+      '@features': path.resolve(__dirname, 'src/features'),
     },
   },
 })
