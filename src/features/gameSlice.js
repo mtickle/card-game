@@ -48,11 +48,13 @@ const gameSlice = createSlice({
             state.gameMessage = "New game started. Player 1's turn!";
         },
 
+        // ... imports and other reducers are the same
+
         playCard: (state, action) => {
             const { card, playerIndex, chosenWildColor } = action.payload;
 
             if (state.gameOver || playerIndex !== state.currentPlayer || !canPlayCard(card, state.topCard)) {
-                return;
+                return; // Exit if move is invalid
             }
 
             const cardIdx = state.hands[playerIndex].findIndex(c => c.value === card.value && c.color === card.color);
@@ -68,35 +70,46 @@ const gameSlice = createSlice({
             let penalty = null;
             let nextPlayer = (state.currentPlayer + state.direction + 4) % 4;
 
+            // Handle card effects
             if (card.value === 'Draw Two') {
                 const cardsToDraw = state.deck.splice(-2, 2);
                 state.hands[nextPlayer].push(...cardsToDraw);
                 penalty = { penalizedPlayer: nextPlayer, cardsDrawn: cardsToDraw, count: 2 };
-                nextPlayer = (nextPlayer + state.direction + 4) % 4;
-            } else if (card.value === 'Skip') {
+                nextPlayer = (nextPlayer + state.direction + 4) % 4; // Skip next player
+            }
+            // --- FIX: This block was missing ---
+            else if (card.value === 'Wild Draw Four') {
+                const cardsToDraw = state.deck.splice(-4, 4);
+                state.hands[nextPlayer].push(...cardsToDraw);
+                penalty = { penalizedPlayer: nextPlayer, cardsDrawn: cardsToDraw, count: 4 };
+                nextPlayer = (nextPlayer + state.direction + 4) % 4; // Skip next player
+            }
+            // ------------------------------------
+            else if (card.value === 'Skip') {
                 nextPlayer = (nextPlayer + state.direction + 4) % 4;
             } else if (card.value === 'Reverse') {
                 state.direction *= -1;
                 nextPlayer = (state.currentPlayer + state.direction + 4) % 4;
             }
 
+            // Log the turn
             state.turnHistory.push({
                 turn: state.turnNumber,
                 player: `Player ${playerIndex + 1}`,
                 type: 'PLAY',
                 card,
                 wildColorChoice: chosenWildColor,
-                penalty,
+                penalty, // This will now be correctly populated for a Wild Draw Four
                 timestamp: Date.now(),
             });
 
+            // Check for winner
             if (state.hands[playerIndex].length === 0) {
                 state.gameOver = true;
                 state.winner = `Player ${playerIndex + 1}`;
                 state.finalScores = calculateGameScore(state.hands, playerIndex);
                 state.gameMessage = `${state.winner} wins!`;
 
-                // **FIX: The crucial storage logic is restored here**
                 const finishedGame = {
                     gameId: state.gameId,
                     timestamp: Date.now(),
@@ -114,6 +127,8 @@ const gameSlice = createSlice({
                 state.gameMessage = `Player ${nextPlayer + 1}'s turn.`;
             }
         },
+
+        // ... rest of the slice
 
         drawCard: (state, action) => {
             const { playerIndex } = action.payload;
