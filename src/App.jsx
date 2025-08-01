@@ -1,8 +1,10 @@
+import { useAuth0 } from '@auth0/auth0-react';
 import TurnLogTable from '@components/TurnLogTable';
 import Header from '@layouts/Header';
 import { colors } from '@utils/colorUtils';
 import { useCallback, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import GameStatsPanel from './components/GameStatsPanel';
 
 // Import the actions from your game slice
 import { drawCard, initializeGame, playCard, setAutoplay } from '@features/gameSlice';
@@ -11,7 +13,7 @@ import Card, { getCardIcon, WinnerCard } from '@components/Card';
 import { useLastGameId } from '@hooks/useLastGameId';
 
 function App() {
-  // Get state and dispatch from the Redux store
+  const { user } = useAuth0();
   const state = useSelector((state) => state.game);
   const dispatch = useDispatch();
 
@@ -97,9 +99,9 @@ function App() {
           if (aiCardToPlay.color === 'wild') {
             chosenWildColor = chooseWildColor(currentAiHand);
           }
-          dispatch(playCard({ card: aiCardToPlay, playerIndex: currentPlayer, chosenWildColor }));
+          dispatch(playCard({ card: aiCardToPlay, playerIndex: currentPlayer, chosenWildColor, user }));
         } else {
-          dispatch(drawCard({ playerIndex: currentPlayer }));
+          dispatch(drawCard({ playerIndex: currentPlayer, user }));
         }
       }, isAutoplaying ? 200 : 1500);
       return () => { if (aiTurnTimeoutRef.current) clearTimeout(aiTurnTimeoutRef.current) };
@@ -231,7 +233,11 @@ function App() {
         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-6 py-4 shadow-md flex justify-between items-center rounded-t-2xl">
           <h3 className="text-1xl font-semibold tracking-tight">📊 Game Statistics</h3>
         </div>
+        <GameStatsPanel />
         {lastFinishedGameId && <TurnLogTable gameId={lastFinishedGameId} />}
+
+
+
       </div>
     </div>
   );

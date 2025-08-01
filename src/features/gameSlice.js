@@ -1,8 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit';
 import { calculateGameScore, canPlayCard, createDeck, dealCards } from '@utils/gameUtils';
+import { saveGameToStorage, saveThingsToDatabase, saveTurnLogToStorage } from '@utils/storageUtils'; // Assuming this is your API utility
 import { v4 as uuidv4 } from 'uuid';
-// NEW: Import your storage utilities
-import { saveGameToStorage, saveThingsToDatabase, saveTurnLogToStorage } from '@utils/storageUtils';
 
 const initialState = {
     gameId: null,
@@ -10,7 +9,7 @@ const initialState = {
     hands: [],
     topCard: null,
     currentPlayer: -1,
-    gameMessage: "Welcome! Click 'Start New Game'.",
+    gameMessage: "Welcome! Click 'Start Sim' to begin.",
     direction: 1,
     isAutoplaying: false,
     gameOver: false,
@@ -35,25 +34,27 @@ const gameSlice = createSlice({
                 const card = tempDeck.pop();
                 if (!['Skip', 'Reverse', 'Draw Two', 'Wild', 'Wild Draw Four'].includes(card.value)) {
                     startingTopCard = card;
+                } else {
+                    // Put action cards back at the bottom and reshuffle slightly to avoid loops
+                    deck.unshift(card);
                 }
             }
             if (!startingTopCard) startingTopCard = { color: 'red', value: '1' }; // Fallback
 
-            state.deck = tempDeck;
+            state.deck = deck.filter(c => c !== startingTopCard);
             state.topCard = startingTopCard;
             state.gameId = uuidv4();
             state.currentPlayer = 0;
             state.turnNumber = 1;
-            state.isAutoplaying = action.payload?.isAutoplaying ?? false;
-            state.gameMessage = "New game started. Player 1's turn!";
+            state.isAutoplaying = action.payload?.isAutoplaying ?? true;
+            state.gameMessage = "New simulation started.";
         },
 
-
         playCard: (state, action) => {
-            const { card, playerIndex, chosenWildColor } = action.payload;
+            const { card, playerIndex, chosenWildColor, user } = action.payload;
 
             if (state.gameOver || playerIndex !== state.currentPlayer || !canPlayCard(card, state.topCard)) {
-                return; // Exit if move is invalid
+                return;
             }
 
             const cardIdx = state.hands[playerIndex].findIndex(c => c.value === card.value && c.color === card.color);
@@ -69,40 +70,33 @@ const gameSlice = createSlice({
             let penalty = null;
             let nextPlayer = (state.currentPlayer + state.direction + 4) % 4;
 
-            // Handle card effects
             if (card.value === 'Draw Two') {
                 const cardsToDraw = state.deck.splice(-2, 2);
                 state.hands[nextPlayer].push(...cardsToDraw);
                 penalty = { penalizedPlayer: nextPlayer, cardsDrawn: cardsToDraw, count: 2 };
-                nextPlayer = (nextPlayer + state.direction + 4) % 4; // Skip next player
-            }
-            // --- FIX: This block was missing ---
-            else if (card.value === 'Wild Draw Four') {
+                nextPlayer = (nextPlayer + state.direction + 4) % 4;
+            } else if (card.value === 'Wild Draw Four') {
                 const cardsToDraw = state.deck.splice(-4, 4);
                 state.hands[nextPlayer].push(...cardsToDraw);
                 penalty = { penalizedPlayer: nextPlayer, cardsDrawn: cardsToDraw, count: 4 };
-                nextPlayer = (nextPlayer + state.direction + 4) % 4; // Skip next player
-            }
-            // ------------------------------------
-            else if (card.value === 'Skip') {
+                nextPlayer = (nextPlayer + state.direction + 4) % 4;
+            } else if (card.value === 'Skip') {
                 nextPlayer = (nextPlayer + state.direction + 4) % 4;
             } else if (card.value === 'Reverse') {
                 state.direction *= -1;
                 nextPlayer = (state.currentPlayer + state.direction + 4) % 4;
             }
 
-            // Log the turn
             state.turnHistory.push({
                 turn: state.turnNumber,
                 player: `Player ${playerIndex + 1}`,
                 type: 'PLAY',
                 card,
                 wildColorChoice: chosenWildColor,
-                penalty, // This will now be correctly populated for a Wild Draw Four
+                penalty,
                 timestamp: Date.now(),
             });
 
-            // Check for winner
             if (state.hands[playerIndex].length === 0) {
                 state.gameOver = true;
                 state.winner = `Player ${playerIndex + 1}`;
@@ -115,12 +109,16 @@ const gameSlice = createSlice({
                     winner: state.winner,
                     finalScores: state.finalScores,
                     turnHistory: state.turnHistory,
+                    username: user?.nickname || 'anonymous', // Add the username here
                 };
 
+                // Optional: keep local storage as a backup/helper
                 saveGameToStorage(finishedGame);
                 saveTurnLogToStorage(finishedGame.gameId, finishedGame.turnHistory);
-                saveThingsToDatabase('postCardGame', finishedGame);
 
+                // Save the complete game data to your database via the API
+                console.log(finishedGame)
+                saveThingsToDatabase('postCardGame', finishedGame);
 
             } else {
                 state.currentPlayer = nextPlayer;
@@ -131,7 +129,21 @@ const gameSlice = createSlice({
 
         drawCard: (state, action) => {
             const { playerIndex } = action.payload;
-            if (state.deck.length === 0) return;
+            const nextPlayer = (state.currentPlayer + state.direction + 4) % 4;
+
+            if (state.deck.length === 0) {
+                state.turnHistory.push({
+                    turn: state.turnNumber,
+                    player: `Player ${playerIndex + 1}`,
+                    type: 'DRAW_FAIL_PASS',
+                    card: null,
+                    timestamp: Date.now(),
+                });
+                state.currentPlayer = nextPlayer;
+                state.turnNumber++;
+                state.gameMessage = `Deck is empty! Player ${playerIndex + 1} passes.`;
+                return;
+            }
 
             const drawnCard = state.deck.pop();
             state.hands[playerIndex].push(drawnCard);
@@ -144,8 +156,9 @@ const gameSlice = createSlice({
                 timestamp: Date.now(),
             });
 
-            state.currentPlayer = (state.currentPlayer + state.direction + 4) % 4;
+            state.currentPlayer = nextPlayer;
             state.turnNumber++;
+            state.gameMessage = `Player ${playerIndex + 1} drew a card. Player ${nextPlayer + 1}'s turn.`;
         },
 
         setAutoplay: (state, action) => {
