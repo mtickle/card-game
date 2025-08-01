@@ -2,7 +2,7 @@ import { createSlice } from '@reduxjs/toolkit';
 import { calculateGameScore, canPlayCard, createDeck, dealCards } from '@utils/gameUtils';
 import { v4 as uuidv4 } from 'uuid';
 // NEW: Import your storage utilities
-import { saveGameToStorage, saveTurnLogToStorage } from '@utils/storageUtils';
+import { saveGameToStorage, saveThingsToDatabase, saveTurnLogToStorage } from '@utils/storageUtils';
 
 const initialState = {
     gameId: null,
@@ -48,7 +48,6 @@ const gameSlice = createSlice({
             state.gameMessage = "New game started. Player 1's turn!";
         },
 
-        // ... imports and other reducers are the same
 
         playCard: (state, action) => {
             const { card, playerIndex, chosenWildColor } = action.payload;
@@ -120,6 +119,8 @@ const gameSlice = createSlice({
 
                 saveGameToStorage(finishedGame);
                 saveTurnLogToStorage(finishedGame.gameId, finishedGame.turnHistory);
+                saveThingsToDatabase('postCardGame', finishedGame);
+
 
             } else {
                 state.currentPlayer = nextPlayer;
@@ -127,8 +128,6 @@ const gameSlice = createSlice({
                 state.gameMessage = `Player ${nextPlayer + 1}'s turn.`;
             }
         },
-
-        // ... rest of the slice
 
         drawCard: (state, action) => {
             const { playerIndex } = action.payload;
