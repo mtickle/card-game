@@ -42,8 +42,8 @@ export const saveTurnLogToStorage = (gameId, turnLog) => {
 export async function saveThingsToDatabase(endpoint, data) {
     //const apiUrl = `${API_BASE_URL}/${endpoint}`;
 
-    let apiUrl = 'http://localhost:3001/api/' + endpoint;
-    //let apiUrl = 'https://game-api-zjod.onrender.com/api/' + endpoint;
+    //let apiUrl = 'http://localhost:3001/api/' + endpoint;
+    let apiUrl = 'https://game-api-zjod.onrender.com/api/' + endpoint;
 
     //console.log('Saving to database:', apiUrl, data);
 
