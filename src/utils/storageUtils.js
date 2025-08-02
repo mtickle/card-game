@@ -66,8 +66,8 @@ export async function saveThingsToDatabase(endpoint, data) {
 
 export async function loadThingsFromDatabase(endpoint, ...params) {
     try {
-        const apiUrl = `http://localhost:3001/api/${endpoint}/${params.join('/')}`;
-        // const apiUrl = `https://game-api-zjod.onrender.com/api/${endpoint}/${params.join('/')}`;
+        //const apiUrl = `http://localhost:3001/api/${endpoint}/${params.join('/')}`;
+        const apiUrl = `https://game-api-zjod.onrender.com/api/${endpoint}/${params.join('/')}`;
 
         const response = await fetch(apiUrl, {
             headers: {
