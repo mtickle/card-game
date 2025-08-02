@@ -1,10 +1,10 @@
 import { useAuth0 } from '@auth0/auth0-react';
-import TurnLogTable from '@components/TurnLogTable';
 import Header from '@layouts/Header';
 import { colors } from '@utils/colorUtils';
 import { useCallback, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import GameStatsPanel from './components/GameStatsPanel';
+import TurnLogTable from './components/TurnLogTable';
 
 // Import the actions from your game slice
 import { drawCard, initializeGame, playCard, setAutoplay } from '@features/gameSlice';
@@ -230,9 +230,9 @@ function App() {
 
       {/* Game Statistics and Turn Log */}
       <div className="mb-4 border border-gray-200 bg-white shadow-sm rounded-t-2xl rounded-b-2xl overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-6 py-4 shadow-md flex justify-between items-center rounded-t-2xl">
+        {/* <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-6 py-4 shadow-md flex justify-between items-center rounded-t-2xl">
           <h3 className="text-1xl font-semibold tracking-tight">📊 Game Statistics</h3>
-        </div>
+        </div> */}
         <GameStatsPanel />
         {lastFinishedGameId && <TurnLogTable gameId={lastFinishedGameId} />}
 

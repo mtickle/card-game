@@ -1,7 +1,8 @@
 import { createSlice } from '@reduxjs/toolkit';
-import { calculateGameScore, canPlayCard, createDeck, dealCards } from '@utils/gameUtils';
-import { saveGameToStorage, saveThingsToDatabase, saveTurnLogToStorage } from '@utils/storageUtils'; // Assuming this is your API utility
 import { v4 as uuidv4 } from 'uuid';
+import { createDeck, dealCards, canPlayCard, calculateGameScore } from '@utils/gameUtils';
+import { saveGameToStorage, saveTurnLogToStorage } from '@utils/storageUtils';
+import { saveThingsToDatabase } from '@utils/storageUtils';
 
 const initialState = {
     gameId: null,
@@ -27,20 +28,19 @@ const gameSlice = createSlice({
             Object.assign(state, initialState);
             let deck = createDeck();
             state.hands = dealCards(deck, 4);
-
+            
             let startingTopCard = null;
             let tempDeck = [...deck];
-            while (tempDeck.length > 0 && !startingTopCard) {
+            while(tempDeck.length > 0 && !startingTopCard) {
                 const card = tempDeck.pop();
-                if (!['Skip', 'Reverse', 'Draw Two', 'Wild', 'Wild Draw Four'].includes(card.value)) {
+                if(!['Skip', 'Reverse', 'Draw Two', 'Wild', 'Wild Draw Four'].includes(card.value)) {
                     startingTopCard = card;
                 } else {
-                    // Put action cards back at the bottom and reshuffle slightly to avoid loops
-                    deck.unshift(card);
+                    deck.unshift(card); 
                 }
             }
-            if (!startingTopCard) startingTopCard = { color: 'red', value: '1' }; // Fallback
-
+            if(!startingTopCard) startingTopCard = { color: 'red', value: '1' };
+            
             state.deck = deck.filter(c => c !== startingTopCard);
             state.topCard = startingTopCard;
             state.gameId = uuidv4();
@@ -56,12 +56,15 @@ const gameSlice = createSlice({
             if (state.gameOver || playerIndex !== state.currentPlayer || !canPlayCard(card, state.topCard)) {
                 return;
             }
+            
+            // --- NEW: Capture hand state before modification ---
+            const handBeforePlay = [...state.hands[playerIndex]];
 
             const cardIdx = state.hands[playerIndex].findIndex(c => c.value === card.value && c.color === card.color);
             if (cardIdx !== -1) {
                 state.hands[playerIndex].splice(cardIdx, 1);
             }
-
+            
             state.topCard = { ...card };
             if (card.color === 'wild') {
                 state.topCard.color = chosenWildColor;
@@ -94,6 +97,7 @@ const gameSlice = createSlice({
                 card,
                 wildColorChoice: chosenWildColor,
                 penalty,
+                handBeforePlay, // Add the hand state to the log
                 timestamp: Date.now(),
             });
 
@@ -104,20 +108,16 @@ const gameSlice = createSlice({
                 state.gameMessage = `${state.winner} wins!`;
 
                 const finishedGame = {
-                    gameId: state.gameId,
-                    timestamp: Date.now(),
-                    winner: state.winner,
-                    finalScores: state.finalScores,
-                    turnHistory: state.turnHistory,
-                    username: user?.nickname || 'anonymous', // Add the username here
+                  gameId: state.gameId,
+                  timestamp: Date.now(),
+                  winner: state.winner,
+                  finalScores: state.finalScores,
+                  turnHistory: state.turnHistory,
+                  username: user?.nickname || 'anonymous',
                 };
-
-                // Optional: keep local storage as a backup/helper
+        
                 saveGameToStorage(finishedGame);
                 saveTurnLogToStorage(finishedGame.gameId, finishedGame.turnHistory);
-
-                // Save the complete game data to your database via the API
-                console.log(finishedGame)
                 saveThingsToDatabase('postCardGame', finishedGame);
 
             } else {
@@ -128,8 +128,11 @@ const gameSlice = createSlice({
         },
 
         drawCard: (state, action) => {
-            const { playerIndex } = action.payload;
+            const { playerIndex, user } = action.payload;
             const nextPlayer = (state.currentPlayer + state.direction + 4) % 4;
+            
+            // --- NEW: Capture hand state before modification ---
+            const handBeforePlay = [...state.hands[playerIndex]];
 
             if (state.deck.length === 0) {
                 state.turnHistory.push({
@@ -137,6 +140,7 @@ const gameSlice = createSlice({
                     player: `Player ${playerIndex + 1}`,
                     type: 'DRAW_FAIL_PASS',
                     card: null,
+                    handBeforePlay, // Add hand state here too
                     timestamp: Date.now(),
                 });
                 state.currentPlayer = nextPlayer;
@@ -146,21 +150,68 @@ const gameSlice = createSlice({
             }
 
             const drawnCard = state.deck.pop();
-            state.hands[playerIndex].push(drawnCard);
+            
+            if (canPlayCard(drawnCard, state.topCard)) {
+                state.topCard = { ...drawnCard };
+                let chosenWildColor = null;
+                if (drawnCard.color === 'wild') {
+                    const colorCounts = { red: 0, blue: 0, green: 0, yellow: 0 };
+                    state.hands[playerIndex].forEach(card => {
+                        if (card.color !== 'wild') colorCounts[card.color]++;
+                    });
+                    chosenWildColor = Object.keys(colorCounts).reduce((a, b) => colorCounts[a] > colorCounts[b] ? a : b);
+                    state.topCard.color = chosenWildColor;
+                }
 
-            state.turnHistory.push({
-                turn: state.turnNumber,
-                player: `Player ${playerIndex + 1}`,
-                type: 'DRAW_PASS',
-                card: drawnCard,
-                timestamp: Date.now(),
-            });
+                state.turnHistory.push({
+                    turn: state.turnNumber,
+                    player: `Player ${playerIndex + 1}`,
+                    type: 'DRAW_PLAY',
+                    card: drawnCard,
+                    wildColorChoice: chosenWildColor,
+                    handBeforePlay, // Add hand state here
+                    timestamp: Date.now(),
+                });
 
-            state.currentPlayer = nextPlayer;
-            state.turnNumber++;
-            state.gameMessage = `Player ${playerIndex + 1} drew a card. Player ${nextPlayer + 1}'s turn.`;
+                if (state.hands[playerIndex].length === 0) {
+                    state.gameOver = true;
+                    state.winner = `Player ${playerIndex + 1}`;
+                    state.finalScores = calculateGameScore(state.hands, playerIndex);
+                    state.gameMessage = `${state.winner} wins!`;
+                    
+                    const finishedGame = {
+                        gameId: state.gameId,
+                        timestamp: Date.now(),
+                        winner: state.winner,
+                        finalScores: state.finalScores,
+                        turnHistory: state.turnHistory,
+                        username: user?.nickname || 'anonymous',
+                    };
+                    saveGameToStorage(finishedGame);
+                    saveTurnLogToStorage(finishedGame.gameId, finishedGame.turnHistory);
+                    saveThingsToDatabase('postCardGame', finishedGame);
+                } else {
+                    state.currentPlayer = nextPlayer;
+                    state.turnNumber++;
+                    state.gameMessage = `Player ${playerIndex + 1} drew and played. Player ${nextPlayer + 1}'s turn.`;
+                }
+
+            } else {
+                state.hands[playerIndex].push(drawnCard);
+                state.turnHistory.push({
+                    turn: state.turnNumber,
+                    player: `Player ${playerIndex + 1}`,
+                    type: 'DRAW_PASS',
+                    card: drawnCard,
+                    handBeforePlay, // And finally, add hand state here
+                    timestamp: Date.now(),
+                });
+                state.currentPlayer = nextPlayer;
+                state.turnNumber++;
+                state.gameMessage = `Player ${playerIndex + 1} drew a card. Player ${nextPlayer + 1}'s turn.`;
+            }
         },
-
+        
         setAutoplay: (state, action) => {
             state.isAutoplaying = action.payload;
         }

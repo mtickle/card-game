@@ -8,7 +8,7 @@ import { Bar, Line, Pie } from 'react-chartjs-2';
 // Import your API utility function
 import { loadThingsFromDatabase } from '@utils/storageUtils';
 
-// FIX: Register all the necessary Chart.js components
+// Register all the necessary Chart.js components
 ChartJS.register(
     CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend
 );
@@ -17,34 +17,50 @@ export default function GameStatsPanel({ refreshKey }) {
     const [allGames, setAllGames] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth0();
+    // NEW: State to trigger a manual refresh
+    const [refreshCounter, setRefreshCounter] = useState(0);
 
     useEffect(() => {
-        // We can still keep the auth check to ensure only logged-in users can see stats
         if (isAuthLoading || !isAuthenticated) {
             return;
         }
 
         const fetchGameData = async () => {
             setIsLoading(true);
-            // const username = user?.nickname || 'anonymous'; // Kept for future reference
-
-            // Refactored to fetch all games without a username parameter
-            const games = await loadThingsFromDatabase('getAllGameResults');
-
+            const games = await loadThingsFromDatabase('getAllCardGames');
             setAllGames(Array.isArray(games) ? games : []);
             setIsLoading(false);
         };
 
         fetchGameData();
-    }, [refreshKey, isAuthenticated, isAuthLoading]); // Removed user from dependency array
+        // The effect now runs automatically on game end (via refreshKey) OR on manual click
+    }, [refreshKey, refreshCounter, isAuthenticated, isAuthLoading]);
 
     const stats = useMemo(() => {
         if (!allGames || allGames.length === 0) {
             return null;
         }
 
-        // --- 1. Summary Stats ---
-        const gamesPlayed = allGames.length;
+        // --- Summary Stats Logic ---
+        const scores = allGames
+            .map(g => Array.isArray(g.finalScores) ? g.finalScores.reduce((a, b) => a + b, 0) : 0)
+            .filter(score => typeof score === 'number' && isFinite(score));
+
+        const gamesPlayed = scores.length;
+        const lowestScore = gamesPlayed > 0 ? Math.min(...scores) : 0;
+        const highestScore = gamesPlayed > 0 ? Math.max(...scores) : 0;
+        const averageScore = gamesPlayed > 0
+            ? scores.reduce((a, b) => a + b, 0) / gamesPlayed
+            : 0;
+
+        const summaryStats = {
+            gamesPlayed,
+            lowestScore,
+            highestScore,
+            averageScore: Number(averageScore.toFixed(1)),
+        };
+
+        // --- Other stat calculations (no change) ---
         const playerWins = { 'Player 1': 0, 'Player 2': 0, 'Player 3': 0, 'Player 4': 0 };
         allGames.forEach(game => {
             if (playerWins[game.winner] !== undefined) {
@@ -52,18 +68,18 @@ export default function GameStatsPanel({ refreshKey }) {
             }
         });
 
-        // --- 2. Card Type Distribution ---
-        const cardTypeCounts = {
-            'Number': 0, 'Skip': 0, 'Reverse': 0, 'Draw Two': 0, 'Wild': 0, 'Wild Draw Four': 0
-        };
+        const allCardValues = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'Skip', 'Reverse', 'Draw Two', 'Wild', 'Wild Draw Four'];
+        const cardTypeCounts = allCardValues.reduce((acc, value) => {
+            acc[value] = 0;
+            return acc;
+        }, {});
+
         allGames.forEach(game => {
             if (Array.isArray(game.turnHistory)) {
                 game.turnHistory.forEach(turn => {
                     if (turn.type === 'PLAY' && turn.card) {
                         const value = turn.card.value;
-                        if (!isNaN(parseInt(value))) {
-                            cardTypeCounts['Number']++;
-                        } else if (cardTypeCounts[value] !== undefined) {
+                        if (cardTypeCounts[value] !== undefined) {
                             cardTypeCounts[value]++;
                         }
                     }
@@ -71,18 +87,20 @@ export default function GameStatsPanel({ refreshKey }) {
             }
         });
 
+        const playedCardLabels = Object.keys(cardTypeCounts).filter(key => cardTypeCounts[key] > 0);
+        const playedCardData = playedCardLabels.map(label => cardTypeCounts[label]);
+
         const cardTypeData = {
-            labels: Object.keys(cardTypeCounts),
+            labels: playedCardLabels,
             datasets: [{
                 label: 'Times Played',
-                data: Object.values(cardTypeCounts),
-                backgroundColor: ['#3B82F6', '#EF4444', '#F59E0B', '#10B981', '#6366F1', '#8B5CF6'],
+                data: playedCardData,
+                backgroundColor: ['#3B82F6', '#2563EB', '#1D4ED8', '#1E3A8A', '#172554', '#EF4444', '#F59E0B', '#10B981', '#6366F1', '#8B5CF6'],
                 borderColor: '#1F2937',
                 borderWidth: 1,
             }]
         };
 
-        // --- 3. Player Win Rate ---
         const playerWinData = {
             labels: Object.keys(playerWins),
             datasets: [{
@@ -92,9 +110,7 @@ export default function GameStatsPanel({ refreshKey }) {
             }]
         };
 
-        // --- 4. Average Game Length ---
         const gameLengths = allGames.map(game => Array.isArray(game.turnHistory) ? game.turnHistory.length : 0);
-        const avgGameLength = gameLengths.reduce((a, b) => a + b, 0) / gamesPlayed;
 
         const gameLengthData = {
             labels: allGames.slice(-30).map((g, i) => `Game ${gamesPlayed - Math.min(30, gamesPlayed) + i + 1}`),
@@ -108,12 +124,11 @@ export default function GameStatsPanel({ refreshKey }) {
         };
 
         return {
-            gamesPlayed,
+            summaryStats,
             playerWins,
             cardTypeData,
             playerWinData,
             gameLengthData,
-            avgGameLength: avgGameLength.toFixed(1),
         };
     }, [allGames]);
 
@@ -134,40 +149,58 @@ export default function GameStatsPanel({ refreshKey }) {
     }
 
     return (
-        <div className="space-y-6 p-6">
-            {/* Summary Stat Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-                <div className="bg-[#fffdf7] p-6 rounded-2xl shadow-md border-2 border-[#e2dccc]">
-                    <div className="text-4xl font-bold text-gray-800">{stats.gamesPlayed}</div>
-                    <div className="text-sm text-gray-600 mt-2">Games Played</div>
-                </div>
-                {Object.entries(stats.playerWins).map(([player, wins]) => (
-                    <div key={player} className="bg-[#fffdf7] p-6 rounded-2xl shadow-md border-2 border-[#e2dccc]">
-                        <div className="text-4xl font-bold text-gray-800">{wins}</div>
-                        <div className="text-sm text-gray-600 mt-2">{player} Wins</div>
-                    </div>
-                ))}
+        <div className="mb-4 border border-gray-200 bg-white shadow-sm rounded-t-2xl rounded-b-2xl overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-6 py-4 shadow-md flex justify-between items-center rounded-t-2xl">
+                <h3 className="text-1xl font-semibold tracking-tight">📊 Game Statistics</h3>
+                {/* NEW: Manual Refresh Button */}
+                <button
+                    onClick={() => setRefreshCounter(c => c + 1)}
+                    className="bg-white text-blue-700 px-3 py-1 rounded-lg text-sm font-medium shadow hover:bg-blue-50 transition"
+                >
+                    🔁 Refresh Data
+                </button>
             </div>
+            <div className="space-y-6 p-6">
+                {/* Summary Stat Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+                    <div className="bg-[#fffdf7] p-6 rounded-2xl shadow-md border-2 border-[#e2dccc]">
+                        <div className="text-4xl font-bold text-gray-800">{stats.summaryStats.gamesPlayed}</div>
+                        <div className="text-sm text-gray-600 mt-2">Games Played</div>
+                    </div>
+                    <div className="bg-[#fffdf7] p-6 rounded-2xl shadow-md border-2 border-[#e2dccc]">
+                        <div className="text-4xl font-bold text-gray-800">{stats.summaryStats.lowestScore}</div>
+                        <div className="text-sm text-gray-600 mt-2">Lowest Score</div>
+                    </div>
+                    <div className="bg-[#fffdf7] p-6 rounded-2xl shadow-md border-2 border-[#e2dccc]">
+                        <div className="text-4xl font-bold text-gray-800">{stats.summaryStats.highestScore}</div>
+                        <div className="text-sm text-gray-600 mt-2">Highest Score</div>
+                    </div>
+                    <div className="bg-[#fffdf7] p-6 rounded-2xl shadow-md border-2 border-[#e2dccc]">
+                        <div className="text-4xl font-bold text-gray-800">{stats.summaryStats.averageScore}</div>
+                        <div className="text-sm text-gray-600 mt-2">Average Score</div>
+                    </div>
+                </div>
 
-            {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="w-full bg-[#fffdf7] p-6 rounded-2xl shadow-md border-2 border-[#e2dccc]">
-                    <h3 className="text-lg font-medium text-gray-700 mb-4">Player Win Distribution</h3>
-                    <div className="w-full h-[250px] flex justify-center p-2">
-                        <Pie data={stats.playerWinData} options={{ responsive: true, maintainAspectRatio: false }} />
+                {/* Charts */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="w-full bg-[#fffdf7] p-6 rounded-2xl shadow-md border-2 border-[#e2dccc]">
+                        <h3 className="text-lg font-medium text-gray-700 mb-4">Player Win Distribution</h3>
+                        <div className="w-full h-[250px] flex justify-center p-2">
+                            <Pie data={stats.playerWinData} options={{ responsive: true, maintainAspectRatio: false }} />
+                        </div>
+                    </div>
+                    <div className="w-full bg-[#fffdf7] p-6 rounded-2xl shadow-md border-2 border-[#e2dccc]">
+                        <h3 className="text-lg font-medium text-gray-700 mb-4">Card Types Played</h3>
+                        <div className="w-full h-[250px] p-2">
+                            <Bar data={stats.cardTypeData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }} />
+                        </div>
                     </div>
                 </div>
                 <div className="w-full bg-[#fffdf7] p-6 rounded-2xl shadow-md border-2 border-[#e2dccc]">
-                    <h3 className="text-lg font-medium text-gray-700 mb-4">Card Types Played</h3>
+                    <h3 className="text-lg font-medium text-gray-700 mb-4">Game Length (Last 30 Games)</h3>
                     <div className="w-full h-[250px] p-2">
-                        <Bar data={stats.cardTypeData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }} />
+                        <Line data={stats.gameLengthData} options={{ responsive: true, maintainAspectRatio: false }} />
                     </div>
-                </div>
-            </div>
-            <div className="w-full bg-[#fffdf7] p-6 rounded-2xl shadow-md border-2 border-[#e2dccc]">
-                <h3 className="text-lg font-medium text-gray-700 mb-4">Game Length (Last 30 Games)</h3>
-                <div className="w-full h-[250px] p-2">
-                    <Line data={stats.gameLengthData} options={{ responsive: true, maintainAspectRatio: false }} />
                 </div>
             </div>
         </div>
