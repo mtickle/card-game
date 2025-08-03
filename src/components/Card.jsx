@@ -4,8 +4,8 @@ import { Palette, Plus, SkipForward, Undo2 } from 'lucide-react';
 // Add a simple "WinnerCard" component or integrate its styles directly
 export const WinnerCard = () => (
     <div
-        className="w-14 h-20 rounded-xl shadow-md flex items-center justify-center text-3xl font-extrabold bg-green-500 text-white border-4 border-green-700 animate-pulse-once"
-        style={{ minWidth: '3.5rem', minHeight: '4.5rem' }} // Ensure it maintains card size
+        className="w-14 h-14 rounded-xl shadow-md flex items-center justify-center text-3xl font-extrabold bg-purple-400 text-white border-4 border-purple-700 animate-pulse-once"
+        style={{ minWidth: '3.5rem', minHeight: '4rem' }} // Ensure it maintains card size
     >
         🏆
     </div>
@@ -44,13 +44,13 @@ export const getColorClass = (color, type = 'card') => {
     // 'type' can be used to vary styles, e.g., 'card' vs 'border'
     switch (color) {
         case 'red':
-            return type === 'card' ? 'bg-red-500 text-white' : 'border-red-500 text-red-600';
+            return type === 'card' ? 'bg-red-500 text-white' : 'border-red-900 text-red-600';
         case 'blue':
-            return type === 'card' ? 'bg-blue-500 text-white' : 'border-blue-500 text-blue-600';
+            return type === 'card' ? 'bg-blue-500 text-white' : 'border-blue-900 text-blue-600';
         case 'green':
-            return type === 'card' ? 'bg-green-500 text-white' : 'border-green-500 text-green-600';
+            return type === 'card' ? 'bg-green-500 text-white' : 'border-green-900 text-green-600';
         case 'yellow':
-            return type === 'card' ? 'bg-yellow-400 text-black' : 'border-yellow-500 text-yellow-600'; // Yellow text on yellow card can be hard to see
+            return type === 'card' ? 'bg-yellow-400 text-black' : 'border-yellow-900 text-yellow-600'; // Yellow text on yellow card can be hard to see
         case 'wild':
             return type === 'card' ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white' : 'border-gray-500 text-gray-600';
         default:
@@ -63,7 +63,7 @@ const Card = ({ card, onClick, isDisabled, isClickable }) => {
     const { color, value } = card;
 
     const baseClasses = `
-        w-14 h-20 rounded-xl shadow-md flex items-center justify-center text-lg font-bold transition-all duration-200 ease-in-out
+        w-14 h-14 rounded-xl shadow-md flex items-center justify-center text-lg font-bold transition-all duration-200 ease-in-out
         ${getColorClass(color, 'card')}
         ${isClickable ? 'cursor-pointer hover:scale-105' : ''}
         ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}

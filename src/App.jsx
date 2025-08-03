@@ -12,6 +12,16 @@ import { drawCard, initializeGame, playCard, setAutoplay } from '@features/gameS
 import Card, { getCardIcon, WinnerCard } from '@components/Card';
 import { useLastGameId } from '@hooks/useLastGameId';
 
+// A map to define the point value of each card for strategic sorting
+const cardValueMap = {
+  'Wild Draw Four': 50,
+  'Wild': 50,
+  'Draw Two': 20,
+  'Reverse': 20,
+  'Skip': 20,
+  '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2, '1': 1, '0': 0
+};
+
 function App() {
   const { user } = useAuth0();
   const state = useSelector((state) => state.game);
@@ -24,7 +34,6 @@ function App() {
     topCard,
     currentPlayer,
     gameMessage,
-    // Note: the old string-based `history` array is no longer used for the UI
     isAutoplaying,
     gameOver,
     winner,
@@ -34,7 +43,6 @@ function App() {
   const aiTurnTimeoutRef = useRef(null);
   const gameOverTimeoutRef = useRef(null);
 
-  // --- AI Logic and other callbacks (no changes needed) ---
   const canPlayCardUI = useCallback((card, currentTopCard) => {
     if (!card || !currentTopCard) return false;
     if (card.color === 'wild') return true;
@@ -57,21 +65,22 @@ function App() {
     return bestColor;
   }, []);
 
+  // --- UPDATED AI Logic with Sorting Strategy ---
   const playAI = useCallback((hand, currentTopCard) => {
-    for (let card of hand) {
-      if (card.color !== 'wild' && canPlayCardUI(card, currentTopCard)) {
+    const sortedHand = [...hand];
+    // Sort the hand from highest point value to lowest
+    sortedHand.sort((a, b) => cardValueMap[b.value] - cardValueMap[a.value]);
+
+    // Find the first playable card in the strategically sorted hand
+    for (let card of sortedHand) {
+      if (canPlayCardUI(card, currentTopCard)) {
         return card;
       }
     }
-    for (let card of hand) {
-      if (card.color === 'wild') {
-        return card;
-      }
-    }
-    return null;
+    return null; // No playable card found
   }, [canPlayCardUI]);
 
-  // --- Effect Hooks (using new Redux actions) ---
+  // --- Effect Hooks ---
   useEffect(() => {
     if (hands && hands.length === 0 && deck.length === 0 && !topCard) {
       dispatch(initializeGame({ isAutoplaying: false }));
@@ -87,6 +96,7 @@ function App() {
       if (aiTurnTimeoutRef.current) clearTimeout(aiTurnTimeoutRef.current);
       return;
     }
+    // AI turn logic now applies to players 1, 2, 3, and player 0 if autoplay is on
     const isCurrentPlayerAI = (currentPlayer !== 0 || isAutoplaying);
     if (isCurrentPlayerAI) {
       if (aiTurnTimeoutRef.current) clearTimeout(aiTurnTimeoutRef.current);
@@ -106,7 +116,7 @@ function App() {
       }, isAutoplaying ? 200 : 1500);
       return () => { if (aiTurnTimeoutRef.current) clearTimeout(aiTurnTimeoutRef.current) };
     }
-  }, [currentPlayer, hands, topCard, isAutoplaying, gameOver, playAI, chooseWildColor, dispatch]);
+  }, [currentPlayer, hands, topCard, isAutoplaying, gameOver, playAI, chooseWildColor, dispatch, user]);
 
   useEffect(() => {
     if (gameOver && isAutoplaying) {
@@ -151,11 +161,11 @@ function App() {
               <div className="flex flex-col gap-2">
                 <div className="font-semibold text-gray-800 text-left">
                   Player {player + 1}
-                  {currentPlayer === player && isAutoplaying && (
+                  {currentPlayer === player && isAutoplaying && player !== 0 && (
                     <span className="ml-2 text-sm text-gray-500">(AI)</span>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-1 justify-left" style={{ minHeight: '6rem' }}>
+                <div className="flex flex-wrap gap-1 justify-left" style={{ minHeight: '4rem' }}>
                   {hands[player]?.length > 0 ? (
                     hands[player].map((card, index) => (
                       <Card
@@ -166,23 +176,19 @@ function App() {
                             if (card.color === 'wild') {
                               const chosenColor = prompt('Choose a color: red, blue, green, or yellow')?.toLowerCase();
                               if (chosenColor && colors.includes(chosenColor)) {
-                                dispatch(playCard({ card, playerIndex: 0, chosenWildColor: chosenColor }));
+                                dispatch(playCard({ card, playerIndex: 0, chosenWildColor, user }));
                               }
                             } else {
-                              dispatch(playCard({ card, playerIndex: 0 }));
+                              dispatch(playCard({ card, playerIndex: 0, user }));
                             }
                           }
                         }}
-                        isDisabled={(player !== currentPlayer) || isAutoplaying || gameOver || !canPlayCardUI(card, topCard)}
-                        isClickable={player === 0 && player === currentPlayer && !isAutoplaying && !gameOver && canPlayCardUI(card, topCard)}
+                        isDisabled={(player !== currentPlayer) || (player === 0 && isAutoplaying) || gameOver || !canPlayCardUI(card, topCard)}
+                        isClickable={player === 0 && !isAutoplaying && currentPlayer === 0 && !gameOver && canPlayCardUI(card, topCard)}
                       />
                     ))
                   ) : (
-                    gameOver && winner === player ? (
-                      <WinnerCard />
-                    ) : (
-                      <p className="text-gray-500 text-sm" style={{ width: '6rem', height: '9rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>No cards.</p>
-                    )
+                    <WinnerCard />
                   )}
                 </div>
               </div>
@@ -206,7 +212,7 @@ function App() {
             <button
               className={`px-6 py-3 rounded-lg text-white text-lg font-semibold transition-colors duration-200 ${!isAutoplaying ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} ${(gameOver && !isAutoplaying) ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={() => dispatch(setAutoplay(!isAutoplaying))}
-              disabled={!isAutoplaying && gameOver}
+              disabled={gameOver && !isAutoplaying}
             >
               {isAutoplaying ? 'Stop Autoplay' : 'Start Autoplay'}
             </button>
@@ -220,7 +226,6 @@ function App() {
             )}
           </div>
 
-          {/* This is the container for the old history panel, which is now replaced by the TurnLogTable below */}
           <div className="w-full md:w-120 bg-gray-100 p-6 rounded-lg shadow-lg max-h-[40vh] overflow-y-auto">
             <h3 className="text-1xl font-semibold mb-4 text-gray-800 border-b pb-2">Game Message</h3>
             <p className="text-gray-700">{gameMessage}</p>
@@ -230,14 +235,8 @@ function App() {
 
       {/* Game Statistics and Turn Log */}
       <div className="mb-4 border border-gray-200 bg-white shadow-sm rounded-t-2xl rounded-b-2xl overflow-hidden">
-        {/* <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-6 py-4 shadow-md flex justify-between items-center rounded-t-2xl">
-          <h3 className="text-1xl font-semibold tracking-tight">📊 Game Statistics</h3>
-        </div> */}
-        <GameStatsPanel />
+        <GameStatsPanel refreshKey={lastFinishedGameId} />
         {lastFinishedGameId && <TurnLogTable gameId={lastFinishedGameId} />}
-
-
-
       </div>
     </div>
   );

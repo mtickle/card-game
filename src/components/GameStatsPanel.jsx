@@ -113,10 +113,10 @@ export default function GameStatsPanel({ refreshKey }) {
         const gameLengths = allGames.map(game => Array.isArray(game.turnHistory) ? game.turnHistory.length : 0);
 
         const gameLengthData = {
-            labels: allGames.slice(-30).map((g, i) => `Game ${gamesPlayed - Math.min(30, gamesPlayed) + i + 1}`),
+            labels: allGames.slice(-100).map((g, i) => `Game ${gamesPlayed - Math.min(100, gamesPlayed) + i + 1}`),
             datasets: [{
                 label: 'Number of Turns',
-                data: gameLengths.slice(-30),
+                data: gameLengths.slice(-100),
                 borderColor: '#2563eb',
                 backgroundColor: '#2563eb',
                 tension: 0.1,
